@@ -3,6 +3,7 @@ package infrastructure
 import (
 	"fmt"
 	"go-clean-api/config"
+	courierDomain "go-clean-api/internal/courier/domain"
 	shopDomain "go-clean-api/internal/shop/domain"
 	userDomain "go-clean-api/internal/user/domain"
 	"log"
@@ -33,6 +34,7 @@ func NewDatabase(cfg *config.DBConfig) *gorm.DB {
 	err = db.AutoMigrate(
 		&userDomain.User{},
 		&shopDomain.Shop{},
+		&courierDomain.Courier{},
 	)
 
 	if err != nil {

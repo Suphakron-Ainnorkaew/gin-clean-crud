@@ -4,6 +4,7 @@ package main
 import (
 	"go-clean-api/config"
 	"go-clean-api/infrastructure"
+	"go-clean-api/internal/courier"
 	"go-clean-api/internal/shop"
 	"go-clean-api/internal/user"
 	"log"
@@ -22,11 +23,16 @@ func main() {
 	shopRepo := shop.NewGormShopRepository(db)
 	shopUsecase := shop.NewShopUsecase(shopRepo)
 
+	courierRepo := courier.NewGormCourierRepository(db)
+	courierUsecase := courier.NewCourierUsecase(courierRepo)
+
 	e := echo.New()
 
 	user.NewUserHandler(e, userUsecase)
 
 	shop.NewShopHandler(e, shopUsecase)
+
+	courier.NewCourierHandler(e, courierUsecase)
 
 	log.Println("Starting server on :8080")
 	if err := e.Start(":8080"); err != nil {

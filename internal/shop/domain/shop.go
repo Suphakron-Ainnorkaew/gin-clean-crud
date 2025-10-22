@@ -8,7 +8,7 @@ import (
 
 type Shop struct {
 	ID             int            `json:"id" gorm:"primaryKey"`
-	Name           string         `json:"Name" gorm:"not null"`
+	Name           string         `json:"name" gorm:"not null"`
 	Province       string         `json:"province" gorm:"not null"`
 	District       string         `json:"district" gorm:"not null"`
 	Subdistrict    string         `json:"subdistrict" gorm:"not null"`
