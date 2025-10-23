@@ -1,32 +1,34 @@
-package user
+// user/delivery/http.go
+package delivery
 
 import (
-	"fmt"
-	"go-clean-api/internal/user/domain"
+	"go-clean-api/domain"
+	"go-clean-api/entity"
 	"net/http"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
 )
 
-type UserHandler struct {
-	usecase UserUsecase
+type Handler struct {
+	usecase domain.UserUsecase
 }
 
-func NewUserHandler(e *echo.Echo, usecase UserUsecase) {
-	handler := &UserHandler{
+func NewHandler(e *echo.Group, usecase domain.UserUsecase) *Handler {
+	handler := &Handler{
 		usecase: usecase,
 	}
 
-	g := e.Group("/users")
-	g.POST("", handler.CreateUser)
-	g.GET("", handler.GetAllUsers)
-	g.GET("/:id", handler.GetUserByID)
-	g.PUT("/:id", handler.UpdateUser)
-	g.DELETE("/:id", handler.DeleteUser)
+	e.POST("/users", handler.CreateUser)
+	e.GET("/users", handler.GetAllUsers)
+	e.GET("/users/:id", handler.GetUserByID)
+	e.PUT("/users/:id", handler.UpdateUser)
+	e.DELETE("/users/:id", handler.DeleteUser)
+
+	return handler
 }
 
-func (h *UserHandler) parseID(c echo.Context) (uint, error) {
+func (h *Handler) parseID(c echo.Context) (uint, error) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		return 0, err
@@ -35,8 +37,8 @@ func (h *UserHandler) parseID(c echo.Context) (uint, error) {
 }
 
 // POST /users
-func (h *UserHandler) CreateUser(c echo.Context) error {
-	var user domain.User
+func (h *Handler) CreateUser(c echo.Context) error {
+	var user entity.User
 
 	if err := c.Bind(&user); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
@@ -50,19 +52,17 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 }
 
 // GET /users
-func (h *UserHandler) GetAllUsers(c echo.Context) error {
-	fmt.Println("GetAllUsers")
+func (h *Handler) GetAllUsers(c echo.Context) error {
 	users, err := h.usecase.GetAllUsers()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	fmt.Println("users", len(users))
 	return c.JSON(http.StatusOK, users)
 }
 
 // GET /users/:id
-func (h *UserHandler) GetUserByID(c echo.Context) error {
+func (h *Handler) GetUserByID(c echo.Context) error {
 	id, err := h.parseID(c)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid user ID"})
@@ -80,7 +80,7 @@ func (h *UserHandler) GetUserByID(c echo.Context) error {
 }
 
 // PUT /users/:id
-func (h *UserHandler) UpdateUser(c echo.Context) error {
+func (h *Handler) UpdateUser(c echo.Context) error {
 	id, err := h.parseID(c)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid user ID"})
@@ -106,7 +106,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 }
 
 // DELETE /users/:id
-func (h *UserHandler) DeleteUser(c echo.Context) error {
+func (h *Handler) DeleteUser(c echo.Context) error {
 	id, err := h.parseID(c)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid user ID"})
