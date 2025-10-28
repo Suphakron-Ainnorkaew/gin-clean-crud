@@ -1,46 +1,63 @@
-// user/usecase/usecase.go
 package usecase
 
 import (
+	"errors"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type userUsecase struct {
 	userRepo    domain.UserRepository
 	cacheRepo   domain.UserCacheRepository
 	messageRepo domain.UserMessageRepository
+	jwtSecret   string
 }
 
-func NewUserUsecase(
-	userRepo domain.UserRepository,
-	cacheRepo domain.UserCacheRepository,
-	messageRepo domain.UserMessageRepository,
-) domain.UserUsecase {
+func NewUserUsecase(repo domain.UserRepository, cache domain.UserCacheRepository, msg domain.UserMessageRepository, jwtSecret string) domain.UserUsecase {
 	return &userUsecase{
-		userRepo:    userRepo,
-		cacheRepo:   cacheRepo,
-		messageRepo: messageRepo,
+		userRepo:    repo,
+		cacheRepo:   cache,
+		messageRepo: msg,
+		jwtSecret:   jwtSecret,
 	}
 }
 
 func (u *userUsecase) CreateUser(user *entity.User) error {
-	// 1. Create in database
+	if user == nil {
+		return errors.New("user is nil")
+	}
+	if user.Email == "" || user.Password == "" {
+		return errors.New("email and password are required")
+	}
+
+	existing, err := u.userRepo.FindByEmail(user.Email)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		return errors.New("email already in use")
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	user.Password = string(hashed)
+
 	if err := u.userRepo.Create(user); err != nil {
 		return err
 	}
 
-	// 2. Cache the user
-	go func() {
-		u.cacheRepo.SetUserCache(uint(user.ID), user)
-	}()
-
-	// 3. Publish event
-	go func() {
-		u.messageRepo.PublishUserCreated(user)
-	}()
+	if u.messageRepo != nil {
+		_ = u.messageRepo.PublishUserCreated(user)
+	}
 
 	return nil
+
 }
 
 func (u *userUsecase) GetAllUsers() ([]entity.User, error) {
@@ -48,39 +65,27 @@ func (u *userUsecase) GetAllUsers() ([]entity.User, error) {
 }
 
 func (u *userUsecase) GetUserByID(id uint) (*entity.User, error) {
-	// 1. Try cache first
-	if user, err := u.cacheRepo.GetUserCache(id); err == nil && user != nil {
-		return user, nil
+
+	if u == nil {
+		return nil, errors.New("user usecase is nil")
+	}
+	if u.userRepo == nil {
+		return nil, errors.New("user repository is not initialized")
 	}
 
-	// 2. Get from database
-	user, err := u.userRepo.FindByID(id)
-	if err != nil {
-		return nil, err
-	}
+	return u.userRepo.FindByID(id)
 
-	// 3. Cache the result
-	if user != nil {
-		go func() {
-			u.cacheRepo.SetUserCache(id, user)
-		}()
-	}
-
-	return user, nil
 }
 
 func (u *userUsecase) UpdateUser(user *entity.User) error {
-	// 1. Update in database
 	if err := u.userRepo.Update(user); err != nil {
 		return err
 	}
 
-	// 2. Update cache
 	go func() {
 		u.cacheRepo.SetUserCache(uint(user.ID), user)
 	}()
 
-	// 3. Publish event
 	go func() {
 		u.messageRepo.PublishUserUpdated(user)
 	}()
@@ -89,17 +94,14 @@ func (u *userUsecase) UpdateUser(user *entity.User) error {
 }
 
 func (u *userUsecase) DeleteUser(id uint) error {
-	// 1. Delete from database
 	if err := u.userRepo.Delete(id); err != nil {
 		return err
 	}
 
-	// 2. Delete from cache
 	go func() {
 		u.cacheRepo.DeleteUserCache(id)
 	}()
 
-	// 3. Publish event
 	go func() {
 		u.messageRepo.PublishUserDeleted(id)
 	}()
@@ -121,4 +123,31 @@ func (u *userUsecase) ValidateUserCredentials(email, password string) (*entity.U
 	}
 
 	return user, nil
+}
+
+func (u *userUsecase) Login(email, password string) (string, error) {
+	user, err := u.userRepo.FindByEmail(email)
+	if err != nil {
+		return "", err
+	}
+	if user == nil {
+		return "", errors.New("Invalid credentials")
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		return "", errors.New("invalid credentials")
+	}
+
+	claims := jwt.MapClaims{
+		"user_id":   user.ID,
+		"email":     user.Email,
+		"type_user": user.TypeUser,
+		"exp":       time.Now().Add(24 * time.Hour).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString([]byte(u.jwtSecret))
+	if err != nil {
+		return "", err
+	}
+	return signed, nil
 }

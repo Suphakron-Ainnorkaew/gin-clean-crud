@@ -1,6 +1,8 @@
 package domain
 
-import "go-clean-api/entity"
+import (
+	"go-clean-api/entity"
+)
 
 type UserUsecase interface {
 	CreateUser(user *entity.User) error
@@ -11,6 +13,8 @@ type UserUsecase interface {
 
 	GetUserByEmail(email string) (*entity.User, error)
 	ValidateUserCredentials(email, password string) (*entity.User, error)
+
+	Login(email, password string) (string, error)
 }
 
 type UserRepository interface {
