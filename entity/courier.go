@@ -7,7 +7,7 @@ import (
 )
 
 type Courier struct {
-	ID            int            `json:"id" gorm:"primaryKey"`
+	ID            int            `json:"id" gorm:"primaryKey;autoIncrement"`
 	Brand         string         `json:"brand" gorm:"not null"`
 	Employer_name string         `json:"employer_name" gorm:"not null"`
 	Phone         string         `json:"phone" gorm:"not null"`

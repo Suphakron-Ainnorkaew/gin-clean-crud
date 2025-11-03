@@ -37,14 +37,22 @@ func (r *postgresShopRepository) FindByID(id uint) (*entity.Shop, error) {
 	return &shop, nil
 }
 
+func (r *postgresShopRepository) FindByUserID(userID uint) (*entity.Shop, error) {
+	var shop entity.Shop
+	err := r.db.Where("user_id = ?", userID).First(&shop).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &shop, nil
+}
+
 func (r *postgresShopRepository) Update(shop *entity.Shop) error {
 	return r.db.Save(shop).Error
 }
 
 func (r *postgresShopRepository) Delete(id uint) error {
 	return r.db.Delete(&entity.Shop{}, id).Error
-}
-
-func (r *postgresShopRepository) CreateProduct(product *entity.Product) error {
-	return r.db.Create(product).Error
 }

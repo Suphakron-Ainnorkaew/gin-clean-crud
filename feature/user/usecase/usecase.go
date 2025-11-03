@@ -11,18 +11,14 @@ import (
 )
 
 type userUsecase struct {
-	userRepo    domain.UserRepository
-	cacheRepo   domain.UserCacheRepository
-	messageRepo domain.UserMessageRepository
-	jwtSecret   string
+	userRepo  domain.UserRepository
+	jwtSecret string
 }
 
-func NewUserUsecase(repo domain.UserRepository, cache domain.UserCacheRepository, msg domain.UserMessageRepository, jwtSecret string) domain.UserUsecase {
+func NewUserUsecase(repo domain.UserRepository, jwtSecret string) domain.UserUsecase {
 	return &userUsecase{
-		userRepo:    repo,
-		cacheRepo:   cache,
-		messageRepo: msg,
-		jwtSecret:   jwtSecret,
+		userRepo:  repo,
+		jwtSecret: jwtSecret,
 	}
 }
 
@@ -51,11 +47,6 @@ func (u *userUsecase) CreateUser(user *entity.User) error {
 	if err := u.userRepo.Create(user); err != nil {
 		return err
 	}
-
-	if u.messageRepo != nil {
-		_ = u.messageRepo.PublishUserCreated(user)
-	}
-
 	return nil
 
 }
@@ -82,14 +73,6 @@ func (u *userUsecase) UpdateUser(user *entity.User) error {
 		return err
 	}
 
-	go func() {
-		u.cacheRepo.SetUserCache(uint(user.ID), user)
-	}()
-
-	go func() {
-		u.messageRepo.PublishUserUpdated(user)
-	}()
-
 	return nil
 }
 
@@ -97,14 +80,6 @@ func (u *userUsecase) DeleteUser(id uint) error {
 	if err := u.userRepo.Delete(id); err != nil {
 		return err
 	}
-
-	go func() {
-		u.cacheRepo.DeleteUserCache(id)
-	}()
-
-	go func() {
-		u.messageRepo.PublishUserDeleted(id)
-	}()
 
 	return nil
 }

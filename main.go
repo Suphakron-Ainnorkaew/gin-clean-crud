@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go-clean-api/config"
 	"go-clean-api/entity"
+	"go-clean-api/middleware"
 	"os"
 
 	"log"
@@ -15,13 +16,25 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	userDelivery "go-clean-api/user/delivery"
-	userRepo "go-clean-api/user/repository"
-	userUseCase "go-clean-api/user/usecase"
+	userDelivery "go-clean-api/feature/user/delivery"
+	userRepo "go-clean-api/feature/user/repository"
+	userUseCase "go-clean-api/feature/user/usecase"
 
-	shopDelivery "go-clean-api/shop/delivery"
-	shopRepo "go-clean-api/shop/repository"
-	shopUseCase "go-clean-api/shop/usecase"
+	shopDelivery "go-clean-api/feature/shop/delivery"
+	shopRepo "go-clean-api/feature/shop/repository"
+	shopUseCase "go-clean-api/feature/shop/usecase"
+
+	courierDelivery "go-clean-api/feature/courier/delivery"
+	courierRepo "go-clean-api/feature/courier/repository"
+	courierUseCase "go-clean-api/feature/courier/usecase"
+
+	orderDelivery "go-clean-api/feature/order/delivery"
+	orderRepo "go-clean-api/feature/order/repository"
+	orderUseCase "go-clean-api/feature/order/usecase"
+
+	productDelivery "go-clean-api/feature/product/delivery"
+	productRepo "go-clean-api/feature/product/repository"
+	productUseCase "go-clean-api/feature/product/usecase"
 )
 
 var runEnv string
@@ -53,8 +66,6 @@ func main() {
 	//user
 	userUC := userUseCase.NewUserUsecase(
 		userRepo.NewPostgresUserRepository(db),
-		nil,
-		nil,
 		cfg.Server.JWTSecret,
 	)
 	userDelivery.NewHandler(v1, userUC, cfg.Server.JWTSecret)
@@ -62,14 +73,34 @@ func main() {
 	//shop
 	shopUC := shopUseCase.NewShopUsecase(
 		shopRepo.NewPostgresShopRepository(db),
-		nil,
-		nil,
 	)
-	// userFetcher will be used by role middleware to load user from DB (source-of-truth)
 	userFetcher := func(id uint) (*entity.User, error) {
 		return userUC.GetUserByID(id)
 	}
-	shopDelivery.NewHandler(v1, shopUC, cfg.Server.JWTSecret, userFetcher)
+	v1.Use(middleware.NewJWTAuth(cfg.Server.JWTSecret))
+	shopDelivery.NewHandler(v1, shopUC, cfg.Server.JWTSecret)
+
+	//courier
+	courierUC := courierUseCase.NewCourierUsecase(
+		courierRepo.NewPostgresCourierRepository(db),
+	)
+	courierDelivery.NewHandler(v1, courierUC)
+
+	//product
+	productUC := productUseCase.NewProductUsecase(
+		productRepo.NewPostgresProductRepository(db),
+	)
+	productDelivery.NewHandler(v1, productUC, cfg.Server.JWTSecret, userFetcher)
+
+	//order
+	orderUC := orderUseCase.NewOrderUsecase(
+		orderRepo.NewPostgresOrderRepository(db),
+		shopRepo.NewPostgresShopRepository(db),
+		courierRepo.NewPostgresCourierRepository(db),
+		userRepo.NewPostgresUserRepository(db),
+		productRepo.NewPostgresProductRepository(db),
+	)
+	orderDelivery.NewHandler(v1, orderUC, cfg.Server.JWTSecret)
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("🌐 starting HTTP server on %s (env=%s)", addr, runEnv)
@@ -93,34 +124,9 @@ func connectDB() error {
 		return errors.Wrap(err, "[Main.connectDB]: failed to connect to database")
 	}
 
-	createType := `
-    DO $$
-    BEGIN
-      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_type') THEN
-        CREATE TYPE user_type AS ENUM ('general','shop','admin');
-      END IF;
-    END$$;
-    `
-	if execErr := db.Exec(createType).Error; execErr != nil {
-		return errors.Wrap(execErr, "[Main.connectDB]: failed to create enum type user_type")
-	}
-
-	if migrateErr := db.AutoMigrate(&entity.User{}, &entity.Shop{}, &entity.Product{}); migrateErr != nil {
+	if migrateErr := db.AutoMigrate(&entity.User{}, &entity.Shop{}, &entity.Product{}, &entity.Courier{}, &entity.Order{}, &entity.OrderItem{}); migrateErr != nil {
 		return errors.Wrap(migrateErr, "[Main.connectDB]: auto migrate failed")
 	}
 
 	return nil
-}
-
-func NewGormDB(dsn string) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		return nil, err
-	}
-
-	if err := db.AutoMigrate(&entity.User{}); err != nil {
-		return nil, fmt.Errorf("auto migrate failed: %w", err)
-	}
-
-	return db, nil
 }

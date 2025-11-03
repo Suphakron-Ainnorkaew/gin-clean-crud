@@ -38,8 +38,6 @@ func RequireRole(fetch UserFetcher, allowedRoles ...entity.UserType) echo.Middle
 	}
 }
 
-// RequireRoleFromJWT checks type_user from JWT claims (faster, no DB query)
-// Use this when you trust the JWT token and don't need to verify against DB
 func RequireRoleFromJWT(allowedRoles ...entity.UserType) echo.MiddlewareFunc {
 	roleSet := map[entity.UserType]struct{}{}
 	for _, r := range allowedRoles {
@@ -60,9 +58,9 @@ func RequireRoleFromJWT(allowedRoles ...entity.UserType) echo.MiddlewareFunc {
 			uRole := entity.UserType(typeUser)
 			if _, ok := roleSet[uRole]; !ok {
 				return c.JSON(http.StatusForbidden, map[string]string{
-					"error": "insufficient permissions",
+					"error":         "insufficient permissions",
 					"required_role": "shop",
-					"your_role": typeUser,
+					"your_role":     typeUser,
 				})
 			}
 			return next(c)

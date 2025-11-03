@@ -26,17 +26,17 @@ type UserRepository interface {
 	Delete(id uint) error
 }
 
-type UserCacheRepository interface {
-	SetUserCache(userID uint, user *entity.User) error
-	GetUserCache(userID uint) (*entity.User, error)
-	DeleteUserCache(userID uint) error
-	SetUserSession(sessionID string, userID uint) error
-	GetUserSession(sessionID string) (uint, error)
-}
+// type UserCacheRepository interface {
+// 	SetUserCache(userID uint, user *entity.User) error
+// 	GetUserCache(userID uint) (*entity.User, error)
+// 	DeleteUserCache(userID uint) error
+// 	SetUserSession(sessionID string, userID uint) error
+// 	GetUserSession(sessionID string) (uint, error)
+// }
 
-type UserMessageRepository interface {
-	PublishUserCreated(user *entity.User) error
-	PublishUserUpdated(user *entity.User) error
-	PublishUserDeleted(userID uint) error
-	SubscribeUserEvents() error
-}
+// type UserMessageRepository interface {
+// 	PublishUserCreated(user *entity.User) error
+// 	PublishUserUpdated(user *entity.User) error
+// 	PublishUserDeleted(userID uint) error
+// 	SubscribeUserEvents() error
+// }

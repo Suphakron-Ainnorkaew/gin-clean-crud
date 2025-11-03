@@ -1,4 +1,3 @@
-// user/delivery/http.go
 package delivery
 
 import (
