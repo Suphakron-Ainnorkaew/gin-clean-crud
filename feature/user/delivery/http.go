@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
+	"github.com/sirupsen/logrus"
 )
 
 type Handler struct {
@@ -36,9 +37,9 @@ func (h *Handler) parseID(c echo.Context) (uint, error) {
 func (h *Handler) GetAllUsers(c echo.Context) error {
 	users, err := h.usecase.GetAllUsers()
 	if err != nil {
+		h.cfg.Logrus.WithError(err).Error("Failed to get all users")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
-
 	return c.JSON(http.StatusOK, users)
 }
 
@@ -51,6 +52,7 @@ func (h *Handler) GetUserByID(c echo.Context) error {
 
 	user, err := h.usecase.GetUserByID(id)
 	if err != nil {
+		h.cfg.Logrus.WithError(err).Error("Failed to get user by ID")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	if user == nil {
@@ -80,6 +82,7 @@ func (h *Handler) UpdateUser(c echo.Context) error {
 	}
 
 	if err := h.usecase.UpdateUser(user); err != nil {
+		h.cfg.Logrus.WithError(err).Error("Failed to update user")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
@@ -94,6 +97,7 @@ func (h *Handler) DeleteUser(c echo.Context) error {
 	}
 
 	if err := h.usecase.DeleteUser(id); err != nil {
+		h.cfg.Logrus.WithError(err).Error("Failed to delete user")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
@@ -149,6 +153,7 @@ func (h *Handler) ProfileUser(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	if user == nil {
+		h.cfg.Logrus.WithError(err).Error("Failed to get user by ID")
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
 	}
 
@@ -160,22 +165,36 @@ func (h *Handler) ProfileUser(c echo.Context) error {
 func (h *Handler) CreateUser(c echo.Context) error {
 	var user entity.User
 
+	log := h.cfg.Logrus.WithFields(logrus.Fields{
+		"endpoint": "POST /users",
+		"method":   c.Request().Method,
+		"path":     c.Path(),
+	})
+
+	log.Info("Request started")
+
 	if err := c.Bind(&user); err != nil {
+		log.WithError(err).Warn("Invalid request body")
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
 	if user.Email == "" || user.Password == "" {
+		log.Warn("Missing required fields: email or password")
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "email and password are required"})
 	}
 
 	if err := h.usecase.CreateUser(&user); err != nil {
 		if err.Error() == "email already in use" {
+			log.WithField("email", user.Email).Info("Email already in use")
 			return c.JSON(http.StatusConflict, map[string]string{"error": err.Error()})
 		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+
+		log.WithError(err).Error("Failed to create user")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 
 	user.Password = ""
+	log.WithField("email", user.Email).Info("User created successfully")
 
 	return c.JSON(http.StatusCreated, user)
 }
@@ -191,7 +210,9 @@ func (h *Handler) Login(c echo.Context) error {
 
 	token, err := h.usecase.Login(req.Email, req.Password)
 	if err != nil {
+		h.cfg.Logrus.WithError(err).Error("Failed to login")
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
 	}
+
 	return c.JSON(http.StatusOK, map[string]string{"token": token})
 }

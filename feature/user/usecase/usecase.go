@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"errors"
+	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 	"time"
@@ -11,14 +12,14 @@ import (
 )
 
 type userUsecase struct {
-	userRepo  domain.UserRepository
-	jwtSecret string
+	userRepo domain.UserRepository
+	cfg      config.ToolsConfig
 }
 
-func NewUserUsecase(repo domain.UserRepository, jwtSecret string) domain.UserUsecase {
+func NewUserUsecase(repo domain.UserRepository, cfg config.ToolsConfig) domain.UserUsecase {
 	return &userUsecase{
-		userRepo:  repo,
-		jwtSecret: jwtSecret,
+		userRepo: repo,
+		cfg:      cfg,
 	}
 }
 
@@ -45,6 +46,7 @@ func (u *userUsecase) CreateUser(user *entity.User) error {
 	user.Password = string(hashed)
 
 	if err := u.userRepo.Create(user); err != nil {
+		u.cfg.Logrus.WithError(err).Error("Failed to create user")
 		return err
 	}
 	return nil
@@ -120,8 +122,9 @@ func (u *userUsecase) Login(email, password string) (string, error) {
 		"exp":       time.Now().Add(24 * time.Hour).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := token.SignedString([]byte(u.jwtSecret))
+	signed, err := token.SignedString([]byte(u.cfg.JWTSecret))
 	if err != nil {
+		u.cfg.Logrus.WithError(err).Error("Failed to sign token")
 		return "", err
 	}
 	return signed, nil
