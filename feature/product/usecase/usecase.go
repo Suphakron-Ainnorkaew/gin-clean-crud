@@ -2,22 +2,26 @@ package usecase
 
 import (
 	"errors"
+	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 )
 
 type productUsecase struct {
 	productRepo domain.ProductRepository
-    shopRepo   domain.ShopRepository
+	shopRepo    domain.ShopRepository
+	cfg         config.ToolsConfig
 }
 
 func NewProductUsecase(
-    productRepo domain.ProductRepository,
-    shopRepo domain.ShopRepository,
+	productRepo domain.ProductRepository,
+	shopRepo domain.ShopRepository,
+	cfg config.ToolsConfig,
 ) domain.ProductUsecase {
 	return &productUsecase{
-        productRepo: productRepo,
-        shopRepo:   shopRepo,
+		productRepo: productRepo,
+		shopRepo:    shopRepo,
+		cfg:         cfg,
 	}
 }
 
@@ -42,6 +46,7 @@ func (u *productUsecase) EditProduct(product *entity.Product) error {
 	existing.Stock = product.Stock
 
 	if err := u.productRepo.EditProduct(existing); err != nil {
+		u.cfg.Logrus.WithError(err).Error("Failed to edit product")
 		return err
 	}
 	return nil
@@ -60,11 +65,10 @@ func (u *productUsecase) UpdateProductStock(productID uint, quantity int) error 
 }
 
 func (u *productUsecase) GetShopByUserID(userID uint) (*entity.Shop, error) {
-    if u.shopRepo != nil {
-        return u.shopRepo.FindByUserID(userID)
-    }
-    // fallback หากยังไม่ได้ inject shopRepo
-    return u.productRepo.GetShopByUserID(userID)
+	if u.shopRepo != nil {
+		return u.shopRepo.FindByUserID(userID)
+	}
+	return u.productRepo.GetShopByUserID(userID)
 }
 
 func (u *productUsecase) GetProductsByShopID(shopID uint) ([]entity.Product, error) {
