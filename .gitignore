@@ -3,3 +3,4 @@ scripts/migrations/*.go
 logs/
 *.log
 node_modules/
+.txt
