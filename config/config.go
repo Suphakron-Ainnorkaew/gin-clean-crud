@@ -13,13 +13,17 @@ import (
 type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
+	Tools    ToolsConfig
 }
 
 type ServerConfig struct {
 	Port            string
 	ContextTimeout  time.Duration
 	ShutdownTimeout time.Duration
-	JWTSecret       string
+}
+
+type ToolsConfig struct {
+	JWTSecret string
 }
 
 type DatabaseConfig struct {
@@ -37,7 +41,6 @@ func Load() *Config {
 			Port:            getEnv("PORT", "8080"),
 			ContextTimeout:  getDurationEnv("CONTEXT_TIMEOUT", 30*time.Second),
 			ShutdownTimeout: getDurationEnv("SHUTDOWN_TIMEOUT", 10*time.Second),
-			JWTSecret:       getEnv("JWT_SECRET", "secret"),
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DATABASE_HOST", "localhost"),
@@ -45,6 +48,9 @@ func Load() *Config {
 			User:     getEnv("DATABASE_USERNAME", "postgres"),
 			Password: getEnv("DATABASE_PASSWORD", "supha"),
 			DBName:   getEnv("DATABASE_NAME", "mydb"),
+		},
+		Tools: ToolsConfig{
+			JWTSecret: getEnv("JWT_SECRET", "secret"),
 		},
 	}
 }

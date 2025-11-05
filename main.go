@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-    userDelivery "go-clean-api/feature/user/delivery"
+	userDelivery "go-clean-api/feature/user/delivery"
 	userRepo "go-clean-api/feature/user/repository"
 	userUseCase "go-clean-api/feature/user/usecase"
 
@@ -63,14 +63,17 @@ func main() {
 	e := echo.New()
 
 	v1Public := e.Group("/v1")
-	v1Auth   := e.Group("/v1", middleware.NewJWTAuth(cfg.Server.JWTSecret))
+	v1Auth := e.Group("/v1", middleware.NewJWTAuth(cfg.Tools.JWTSecret))
 
 	//user
 	userUC := userUseCase.NewUserUsecase(
 		userRepo.NewPostgresUserRepository(db),
-		cfg.Server.JWTSecret,
+		cfg.Tools.JWTSecret,
 	)
-    userDelivery.NewHandler(v1Public, v1Auth, userUC, cfg.Server.JWTSecret)
+
+	userH := userDelivery.NewHandler(userUC, cfg.Tools)
+	userDelivery.RegisterAuthUserRoutes(v1Auth, userH)
+	userDelivery.RegisterPublicUserRoutes(v1Public, userH)
 
 	//shop
 	shopUC := shopUseCase.NewShopUsecase(
@@ -79,7 +82,7 @@ func main() {
 	userFetcher := func(id uint) (*entity.User, error) {
 		return userUC.GetUserByID(id)
 	}
-	shopDelivery.NewHandler(v1Auth, shopUC, cfg.Server.JWTSecret)
+	shopDelivery.NewHandler(v1Auth, shopUC, cfg.Tools)
 
 	// courier
 	courierUC := courierUseCase.NewCourierUsecase(
@@ -92,7 +95,7 @@ func main() {
 		productRepo.NewPostgresProductRepository(db),
 		shopRepo.NewPostgresShopRepository(db),
 	)
-	productDelivery.NewHandler(v1Auth, productUC, cfg.Server.JWTSecret, userFetcher)
+	productDelivery.NewHandler(v1Auth, productUC, cfg.Tools.JWTSecret, userFetcher)
 
 	// order
 	orderUC := orderUseCase.NewOrderUsecase(
@@ -102,7 +105,7 @@ func main() {
 		userRepo.NewPostgresUserRepository(db),
 		productRepo.NewPostgresProductRepository(db),
 	)
-	orderDelivery.NewHandler(v1Auth, orderUC, cfg.Server.JWTSecret, userFetcher)
+	orderDelivery.NewHandler(v1Auth, orderUC, cfg.Tools.JWTSecret, userFetcher)
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("🌐 starting HTTP server on %s (env=%s)", addr, runEnv)

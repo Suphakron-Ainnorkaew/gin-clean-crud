@@ -1,23 +1,24 @@
 package delivery
 
 import (
-    "go-clean-api/domain"
-    "go-clean-api/entity"
-    "net/http"
-    "strconv"
+	"go-clean-api/config"
+	"go-clean-api/domain"
+	"go-clean-api/entity"
+	"net/http"
+	"strconv"
 
-    "github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4"
 )
 
 type Handler struct {
-	usecase   domain.ShopUsecase
-	jwtSecret string
+	usecase domain.ShopUsecase
+	cfg     config.ToolsConfig
 }
 
-func NewHandler(e *echo.Group, usecase domain.ShopUsecase, jwtSecret string) *Handler {
+func NewHandler(e *echo.Group, usecase domain.ShopUsecase, cfg config.ToolsConfig) *Handler {
 	handler := &Handler{
-		usecase:   usecase,
-		jwtSecret: jwtSecret,
+		usecase: usecase,
+		cfg:     cfg,
 	}
 
 	e.POST("/shops", handler.CreateShop)
