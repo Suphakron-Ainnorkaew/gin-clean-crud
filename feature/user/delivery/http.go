@@ -1,9 +1,9 @@
 package delivery
 
 import (
+	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
-	"go-clean-api/middleware"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,28 +13,15 @@ import (
 )
 
 type Handler struct {
-	usecase   domain.UserUsecase
-	jwtSecret string
+	usecase domain.UserUsecase
+	cfg     config.ToolsConfig
 }
 
-func NewHandler(public *echo.Group, auth *echo.Group, usecase domain.UserUsecase, jwtSecret string) *Handler {
-	handler := &Handler{
-		usecase:   usecase,
-		jwtSecret: jwtSecret,
+func NewHandler(usecase domain.UserUsecase, cfg config.ToolsConfig) *Handler {
+	return &Handler{
+		usecase: usecase,
+		cfg:     cfg,
 	}
-
-	// Public endpoints
-	public.POST("/users", handler.CreateUser)
-	public.POST("/login", handler.Login)
-
-	// Protected endpoints
-	auth.GET("/users", handler.GetAllUsers, middleware.RequireRoleFromJWT(entity.UserTypeAdmin))
-	auth.GET("/users/:id", handler.GetUserByID, middleware.RequireSelfOrAdmin())
-	auth.PUT("/users/:id", handler.UpdateUser, middleware.RequireRoleFromJWT(entity.UserTypeAdmin))
-	auth.POST("/profile", handler.ProfileUser)
-	auth.DELETE("/users/:id", handler.DeleteUser)
-
-	return handler
 }
 
 func (h *Handler) parseID(c echo.Context) (uint, error) {
@@ -43,30 +30,6 @@ func (h *Handler) parseID(c echo.Context) (uint, error) {
 		return 0, err
 	}
 	return uint(id), nil
-}
-
-// POST /users
-func (h *Handler) CreateUser(c echo.Context) error {
-	var user entity.User
-
-	if err := c.Bind(&user); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-	}
-
-	if user.Email == "" || user.Password == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "email and password are required"})
-	}
-
-	if err := h.usecase.CreateUser(&user); err != nil {
-		if err.Error() == "email already in use" {
-			return c.JSON(http.StatusConflict, map[string]string{"error": err.Error()})
-		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
-	}
-
-	user.Password = ""
-
-	return c.JSON(http.StatusCreated, user)
 }
 
 // GET /users
@@ -137,22 +100,6 @@ func (h *Handler) DeleteUser(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-func (h *Handler) Login(c echo.Context) error {
-	var req struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
-	}
-
-	token, err := h.usecase.Login(req.Email, req.Password)
-	if err != nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
-	}
-	return c.JSON(http.StatusOK, map[string]string{"token": token})
-}
-
 // GET Profile
 func (h *Handler) ProfileUser(c echo.Context) error {
 	auth := c.Request().Header.Get("Authorization")
@@ -164,7 +111,7 @@ func (h *Handler) ProfileUser(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing oken"})
 	}
 
-	secret := h.jwtSecret
+	secret := h.cfg.JWTSecret
 	if secret == "" {
 		secret = "secret"
 	}
@@ -172,9 +119,6 @@ func (h *Handler) ProfileUser(c echo.Context) error {
 	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
 		return []byte(secret), nil
 	})
-	if err != nil || !token.Valid {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid token"})
-	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
@@ -210,4 +154,44 @@ func (h *Handler) ProfileUser(c echo.Context) error {
 
 	user.Password = ""
 	return c.JSON(http.StatusOK, user)
+}
+
+// POST /users
+func (h *Handler) CreateUser(c echo.Context) error {
+	var user entity.User
+
+	if err := c.Bind(&user); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	if user.Email == "" || user.Password == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "email and password are required"})
+	}
+
+	if err := h.usecase.CreateUser(&user); err != nil {
+		if err.Error() == "email already in use" {
+			return c.JSON(http.StatusConflict, map[string]string{"error": err.Error()})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	user.Password = ""
+
+	return c.JSON(http.StatusCreated, user)
+}
+
+func (h *Handler) Login(c echo.Context) error {
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+
+	token, err := h.usecase.Login(req.Email, req.Password)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"token": token})
 }
