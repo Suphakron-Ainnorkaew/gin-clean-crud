@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"errors"
 	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
@@ -8,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/labstack/echo/v4"
+	"github.com/sirupsen/logrus"
 )
 
 type Handler struct {
@@ -41,8 +43,17 @@ func (h *Handler) CreateShop(c echo.Context) error {
 
 	var shop entity.Shop
 
+	log := h.cfg.Logrus.WithFields(logrus.Fields{
+		"endpoint": "POST /shops",
+		"method":   c.Request().Method,
+		"path":     c.Path(),
+	})
+
+	log.Info("Request started")
+
 	userID, ok := c.Get("user_id").(uint)
 	if !ok {
+		log.WithError(errors.New("invalid user id")).Error("Failed to create shop")
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid user id")
 	}
 
@@ -55,11 +66,13 @@ func (h *Handler) CreateShop(c echo.Context) error {
 	shop.UserID = userID
 
 	if err := h.usecase.CreateShop(&shop); err != nil {
+		log.WithError(err).Error("Failed to create shop")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
 	}
 
+	log.WithField("shop", shop).Info("Shop created successfully")
 	return c.JSON(http.StatusCreated, shop)
 }
 
@@ -67,6 +80,7 @@ func (h *Handler) CreateShop(c echo.Context) error {
 func (h *Handler) GetAllShop(c echo.Context) error {
 	shops, err := h.usecase.GetAllShop()
 	if err != nil {
+		h.cfg.Logrus.WithError(err).Error("Failed to get all shops")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, shops)
@@ -86,6 +100,7 @@ func (h *Handler) UpdateShop(c echo.Context) error {
 	payload.ID = int(id)
 
 	if err := h.usecase.UpdateShop(&payload); err != nil {
+		h.cfg.Logrus.WithError(err).Error("Failed to update shop")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 

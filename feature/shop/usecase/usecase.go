@@ -2,19 +2,23 @@ package usecase
 
 import (
 	"errors"
+	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 )
 
 type shopUsecase struct {
 	shopRepo domain.ShopRepository
+	cfg      config.ToolsConfig
 }
 
 func NewShopUsecase(
 	shopRepo domain.ShopRepository,
+	cfg config.ToolsConfig,
 ) domain.ShopUsecase {
 	return &shopUsecase{
 		shopRepo: shopRepo,
+		cfg:      cfg,
 	}
 }
 
@@ -33,6 +37,7 @@ func (u *shopUsecase) CreateShop(shop *entity.Shop) error {
 	}
 
 	if err := u.shopRepo.Create(shop); err != nil {
+		u.cfg.Logrus.WithError(err).Error("Failed to create shop")
 		return err
 	}
 
@@ -58,6 +63,7 @@ func (u *shopUsecase) GetShopByUserID(userID uint) (*entity.Shop, error) {
 
 func (u *shopUsecase) UpdateShop(shop *entity.Shop) error {
 	if err := u.shopRepo.Update(shop); err != nil {
+		u.cfg.Logrus.WithError(err).Error("Failed to update shop")
 		return err
 	}
 
