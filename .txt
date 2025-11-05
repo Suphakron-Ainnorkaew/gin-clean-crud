@@ -1,1 +1,74 @@
 go run ./cmd/main.go
+
+suphabcry@example.com
+supha1111
+
+สร้างคำสั่งซื้อ
+`POST /v1/orders`
+Authorization: Bearer <your_jwt_token>
+Content-Type: application/json
+
+{
+  "shop_id": 1,
+  "courier_id": 1,
+  "items": [
+    {
+      "product_id": 1,
+      "quantity": 2
+    },
+    {
+      "product_id": 2,
+      "quantity": 1
+    }
+  ]
+}
+
+ดูรายละเอียดคำสั่งซื้อ
+`GET /v1/orders`
+Authorization: Bearer <your_jwt_token>
+
+ดูรายละเอียดคำสั่งซื้อ ผ่านไอดี
+`GET /v1/orders/:id`
+Authorization: Bearer <your_jwt_token>
+
+Login
+POST http://localhost:8080/v1/login
+Body:
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+
+สร้างคำสั่งซื้อ
+POST http://localhost:8080/v1/orders
+Authorization: Bearer <token>
+{
+  "shop_id": 1,
+  "courier_id": 1,
+  "items": [
+    {
+      "product_id": 1,
+      "quantity": 2
+    }
+  ]
+}
+
+ดูรายการคำสั่งซื้อ
+GET http://localhost:8080/v1/orders
+Authorization: Bearer <token>
+
+ดูรายละเอียดคำสั่งซื้อ ผ่านไอดี
+GET http://localhost:8080/v1/orders/1
+Authorization: Bearer <token>
+
+Update Order Status
+`PATCH /v1/orders/:id/status`
+{
+  "status": "shipped"
+}
+
+PATCH /v1/orders/:id/payment
+{
+  "payment_status": "complete"
+}
+

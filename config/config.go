@@ -2,31 +2,68 @@ package config
 
 import (
 	"log"
+	"os"
+	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/kelseyhightower/envconfig"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-type DBConfig struct {
-	Host     string `envconfig:"DB_HOST" default:"127.0.0.1"`
-	Port     int    `envconfig:"DB_PORT" default:"5432"`
-	User     string `envconfig:"DB_USER" required:"true"`
-	Password string `envconfig:"DB_PASSWORD" required:"true"`
-	Name     string `envconfig:"DB_NAME" required:"true"`
-	SSLMode  string `envconfig:"DB_SSLMODE" default:"disable"`
+type Config struct {
+	Server   ServerConfig
+	Database DatabaseConfig
 }
 
-func LoadDBConfig() *DBConfig {
+type ServerConfig struct {
+	Port            string
+	ContextTimeout  time.Duration
+	ShutdownTimeout time.Duration
+	JWTSecret       string
+}
 
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, reading from environment variables")
+type DatabaseConfig struct {
+	Host     string
+	Port     string
+	User     string
+	Password string
+	DBName   string
+}
+
+func Load() *Config {
+	_ = godotenv.Load()
+	return &Config{
+		Server: ServerConfig{
+			Port:            getEnv("PORT", "8080"),
+			ContextTimeout:  getDurationEnv("CONTEXT_TIMEOUT", 30*time.Second),
+			ShutdownTimeout: getDurationEnv("SHUTDOWN_TIMEOUT", 10*time.Second),
+			JWTSecret:       getEnv("JWT_SECRET", "secret"),
+		},
+		Database: DatabaseConfig{
+			Host:     getEnv("DATABASE_HOST", "localhost"),
+			Port:     getEnv("DATABASE_PORT", "5432"),
+			User:     getEnv("DATABASE_USERNAME", "postgres"),
+			Password: getEnv("DATABASE_PASSWORD", "supha"),
+			DBName:   getEnv("DATABASE_NAME", "mydb"),
+		},
+	}
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
 	}
 
-	var cfg DBConfig
-	err := envconfig.Process("", &cfg)
-	if err != nil {
-		log.Fatalf("Failed to process config: %v", err)
-	}
+	return defaultValue
+}
 
-	return &cfg
+func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		} else {
+			log.Printf("invalid duration for %s: %v — using default %s", key, err, defaultValue)
+		}
+	}
+	return defaultValue
 }
