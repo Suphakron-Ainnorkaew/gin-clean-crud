@@ -14,3 +14,11 @@ CREATE TABLE orders (
     FOREIGN KEY (shop_id) REFERENCES shops(id),
     FOREIGN KEY (courier_id) REFERENCES couriers(id)
 );
+
+IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'order_status') THEN
+    CREATE TYPE order_status AS ENUM ('pending','shipped','delivered','cancelled');
+END IF;
+
+IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_status') THEN
+    CREATE TYPE payment_status AS ENUM ('complete','pending');
+END IF;

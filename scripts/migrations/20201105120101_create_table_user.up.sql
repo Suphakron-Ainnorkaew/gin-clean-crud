@@ -15,3 +15,5 @@ CREATE TABLE users (
     updated_at TIMESTAMPTZ,
     deleted_at TIMESTAMPTZ
 );
+
+CREATE TYPE IF NOT EXISTS user_type AS ENUM ('general','shop','admin');
