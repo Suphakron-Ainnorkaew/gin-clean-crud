@@ -11,22 +11,29 @@ import (
 )
 
 type Handler struct {
-	usecase domain.OrderUsecase
+	usecase        domain.OrderUsecase
 }
 
-func NewHandler(e *echo.Group, usecase domain.OrderUsecase, jwtSecret string) *Handler {
+func NewHandler(e *echo.Group, usecase domain.OrderUsecase, jwtSecret string, userFetcher middleware.UserFetcher) *Handler {
 	handler := &Handler{
 		usecase: usecase,
 	}
-	e.Use(middleware.NewJWTAuth(jwtSecret))
 
 	e.POST("/orders", handler.CreateOrder)
 	e.GET("/orders", handler.GetMyOrders)
 	e.GET("/orders/:id", handler.GetOrderByID)
-	e.PATCH("/orders/:id/status", handler.UpdateOrderStatus)
-	e.PATCH("/orders/:id/payment", handler.UpdatePaymentStatus)
+
+	e.PATCH("/orders/:id/status", handler.UpdateOrderStatus, middleware.RequireRole(userFetcher, entity.UserTypeShop))
+
+	e.PATCH("/orders/:id/payment", handler.UpdatePaymentStatus, middleware.RequireRole(userFetcher, entity.UserTypeGeneral))
+
+	// ร้านค้า ดูรายละเอียดคำสั่งซื้อของร้านค้าตัวเอง
+	e.GET("/shops/orders", handler.GetShopOrders, middleware.RequireRole(userFetcher, entity.UserTypeShop))
+	e.PATCH("/shops/orders/:id/status", handler.UpdateShopOrderStatus, middleware.RequireRole(userFetcher, entity.UserTypeShop))
+	e.PATCH("/shops/orders/:id/cancel", handler.CancelShopOrder, middleware.RequireRole(userFetcher, entity.UserTypeShop))
 
 	return handler
+
 }
 
 type CreateOrderRequest struct {
@@ -136,6 +143,7 @@ func (h *Handler) GetMyOrders(c echo.Context) error {
 	})
 }
 
+// GET /orders/:id
 func (h *Handler) GetOrderByID(c echo.Context) error {
 	userIDVal := c.Get("user_id")
 	if userIDVal == nil {
@@ -147,6 +155,19 @@ func (h *Handler) GetOrderByID(c echo.Context) error {
 	if !ok {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
 			"error": "invalid user_id type",
+		})
+	}
+
+	typeUserVal := c.Get("type_user")
+	if typeUserVal == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "type_user not found in context",
+		})
+	}
+	typeUser, ok := typeUserVal.(string)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "invalid type_user",
 		})
 	}
 
@@ -169,7 +190,22 @@ func (h *Handler) GetOrderByID(c echo.Context) error {
 		})
 	}
 
-	if order.UserID != int(userID) {
+	// ตรวจสอบ authorization ตาม user type
+	userTypeEnum := entity.UserType(typeUser)
+	hasPermission := false
+
+	switch userTypeEnum {
+	case entity.UserTypeGeneral:
+		// General user ต้องเป็นผู้สั่งซื้อ
+		hasPermission = order.UserID == int(userID)
+	case entity.UserTypeShop:
+		// Shop ต้องเป็นเจ้าของร้าน (ใช้ Shop ที่ preload ไว้แล้ว)
+		hasPermission = order.Shop.UserID == userID
+	default:
+		hasPermission = false
+	}
+
+	if !hasPermission {
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "You don't have permission to view this order",
 		})
@@ -219,24 +255,17 @@ func (h *Handler) UpdateOrderStatus(c echo.Context) error {
 		})
 	}
 
-	order, err := h.usecase.GetOrderByID(uint(orderID))
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
-		})
-	}
-	if order == nil {
-		return c.JSON(http.StatusNotFound, map[string]string{
-			"error": "Order not found",
-		})
-	}
-	if order.UserID != int(userID) {
-		return c.JSON(http.StatusForbidden, map[string]string{
-			"error": "You don't have permission to update this order",
-		})
-	}
-
-	if err := h.usecase.UpdateOrderStatus(uint(orderID), status); err != nil {
+	if err := h.usecase.UpdateOrderStatus(uint(orderID), status, userID); err != nil {
+		if err.Error() == "order not found" {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": err.Error(),
+			})
+		}
+		if err.Error() == "you don't have permission to update this order status" {
+			return c.JSON(http.StatusForbidden, map[string]string{
+				"error": err.Error(),
+			})
+		}
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -287,24 +316,17 @@ func (h *Handler) UpdatePaymentStatus(c echo.Context) error {
 		})
 	}
 
-	order, err := h.usecase.GetOrderByID(uint(orderID))
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
-		})
-	}
-	if order == nil {
-		return c.JSON(http.StatusNotFound, map[string]string{
-			"error": "Order not found",
-		})
-	}
-	if order.UserID != int(userID) {
-		return c.JSON(http.StatusForbidden, map[string]string{
-			"error": "You don't have permission to update this order",
-		})
-	}
-
-	if err := h.usecase.UpdatePaymentStatus(uint(orderID), paymentStatus); err != nil {
+	if err := h.usecase.UpdatePaymentStatus(uint(orderID), paymentStatus, userID); err != nil {
+		if err.Error() == "order not found" {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": err.Error(),
+			})
+		}
+		if err.Error() == "you don't have permission to update this payment status" {
+			return c.JSON(http.StatusForbidden, map[string]string{
+				"error": err.Error(),
+			})
+		}
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -313,5 +335,136 @@ func (h *Handler) UpdatePaymentStatus(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message":        "Payment status updated successfully",
 		"payment_status": paymentStatus,
+	})
+}
+
+// GET /shops/orders
+func (h *Handler) GetShopOrders(c echo.Context) error {
+	userIDVal := c.Get("user_id")
+	if userIDVal == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "user_id not found in context",
+		})
+	}
+	userID, ok := userIDVal.(uint)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "invalid user_id type",
+		})
+	}
+
+	orders, err := h.usecase.GetShopOrders(userID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": err.Error(),
+		})
+	}
+	return c.JSON(http.StatusOK, orders)
+}
+
+// PATCH /shops/orders/:id/status - ร้านค้าอัพเดทสถานะคำสั่งซื้อ
+func (h *Handler) UpdateShopOrderStatus(c echo.Context) error {
+	userIDVal := c.Get("user_id")
+	if userIDVal == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "user_id not found in context",
+		})
+	}
+	userID, ok := userIDVal.(uint)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "invalid user_id type",
+		})
+	}
+
+	orderID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid order ID",
+		})
+	}
+
+	var req struct {
+		Status string `json:"status" validate:"required"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid request body",
+		})
+	}
+
+	status := entity.OrderStatus(req.Status)
+	if status != entity.OrderStatusPending &&
+		status != entity.OrderStatusShipped &&
+		status != entity.OrderStatusDelivered &&
+		status != entity.OrderStatusCancelled {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid status. Must be: pending, shipped, delivered, or cancelled",
+		})
+	}
+
+	if err := h.usecase.UpdateShopOrderStatus(uint(orderID), status, userID); err != nil {
+		if err.Error() == "order not found" {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": err.Error(),
+			})
+		}
+		if err.Error() == "you don't have permission to update this order status" {
+			return c.JSON(http.StatusForbidden, map[string]string{
+				"error": err.Error(),
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Order status updated successfully",
+		"status":  status,
+	})
+}
+
+// PATCH /shops/orders/:id/cancel - ร้านค้ายกเลิกคำสั่งซื้อ
+func (h *Handler) CancelShopOrder(c echo.Context) error {
+	userIDVal := c.Get("user_id")
+	if userIDVal == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "user_id not found in context",
+		})
+	}
+	userID, ok := userIDVal.(uint)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "invalid user_id type",
+		})
+	}
+
+	orderID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid order ID",
+		})
+	}
+
+	if err := h.usecase.CancelShopOrder(uint(orderID), userID); err != nil {
+		if err.Error() == "order not found" {
+			return c.JSON(http.StatusNotFound, map[string]string{
+				"error": err.Error(),
+			})
+		}
+		if err.Error() == "you don't have permission to update this order status" {
+			return c.JSON(http.StatusForbidden, map[string]string{
+				"error": err.Error(),
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Order cancelled successfully",
+		"status":  entity.OrderStatusCancelled,
 	})
 }

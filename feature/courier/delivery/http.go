@@ -1,12 +1,13 @@
 package delivery
 
 import (
-	"go-clean-api/domain"
-	"go-clean-api/entity"
-	"net/http"
-	"strconv"
+    "go-clean-api/domain"
+    "go-clean-api/entity"
+    "go-clean-api/middleware"
+    "net/http"
+    "strconv"
 
-	"github.com/labstack/echo/v4"
+    "github.com/labstack/echo/v4"
 )
 
 type Handler struct {
@@ -18,11 +19,11 @@ func NewHandler(e *echo.Group, usecase domain.CourierUsecase) *Handler {
 		usecase: usecase,
 	}
 
-	e.POST("/courier", handler.CreateCourier)
+    e.POST("/courier", handler.CreateCourier, middleware.RequireRoleFromJWT(entity.UserTypeAdmin))
 	e.GET("/courier", handler.GETAllCourier)
 	e.GET("/courier/:id", handler.GetCourierByID)
-	e.PUT("/courier/:id", handler.UpdateCourier)
-	e.DELETE("/courier/:id", handler.DeleteCourier)
+    e.PUT("/courier/:id", handler.UpdateCourier, middleware.RequireRoleFromJWT(entity.UserTypeAdmin))
+    e.DELETE("/courier/:id", handler.DeleteCourier, middleware.RequireRoleFromJWT(entity.UserTypeAdmin))
 	return handler
 }
 
@@ -49,7 +50,7 @@ func (h *Handler) CreateCourier(c echo.Context) error {
 
 // GET /Courier
 func (h *Handler) GETAllCourier(c echo.Context) error {
-	deliveries, err := h.usecase.GETAllCourier()
+	deliveries, err := h.usecase.GetAllCourier()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}

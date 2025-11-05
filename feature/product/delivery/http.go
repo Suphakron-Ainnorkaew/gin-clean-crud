@@ -19,10 +19,10 @@ func NewHandler(e *echo.Group, usecase domain.ProductUsecase, jwtSecret string, 
 		usecase: usecase,
 	}
 
-	e.Use(middleware.NewJWTAuth(jwtSecret))
 	e.GET("/products", handler.GetAllProduct)
 	e.POST("/products", handler.CreateProduct, middleware.RequireRole(userFetcher, entity.UserTypeShop))
 	e.PUT("/products/:id", handler.EditProduct, middleware.RequireRole(userFetcher, entity.UserTypeShop))
+	e.GET("/shops/:id/products", handler.GetProductsByShopID)
 
 	return handler
 }
@@ -130,4 +130,33 @@ func (h *Handler) EditProduct(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{"message": "product updated", "product": payload})
+}
+
+func (h *Handler) GetProductByID(c echo.Context) error {
+	id, err := h.parseID(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid product id"})
+	}
+
+	p, err := h.usecase.FindProductByID(id)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	if p == nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "product not found"})
+	}
+	return c.JSON(http.StatusOK, p)
+}
+
+func (h *Handler) GetProductsByShopID(c echo.Context) error {
+	shopID, err := h.parseID(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid shop id"})
+	}
+
+	products, err := h.usecase.GetProductsByShopID(shopID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, products)
 }

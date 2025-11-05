@@ -23,7 +23,7 @@ func (u *courierUsecase) GetCourierByID(id uint) (*entity.Courier, error) {
 	return u.courierRepo.GetByID(id)
 }
 
-func (u *courierUsecase) GETAllCourier() ([]entity.Courier, error) {
+func (u *courierUsecase) GetAllCourier() ([]entity.Courier, error) {
 	return u.courierRepo.GetAll()
 }
 

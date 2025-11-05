@@ -1,13 +1,12 @@
 package delivery
 
 import (
-	"fmt"
-	"go-clean-api/domain"
-	"go-clean-api/entity"
-	"net/http"
-	"strconv"
+    "go-clean-api/domain"
+    "go-clean-api/entity"
+    "net/http"
+    "strconv"
 
-	"github.com/labstack/echo/v4"
+    "github.com/labstack/echo/v4"
 )
 
 type Handler struct {
@@ -24,7 +23,6 @@ func NewHandler(e *echo.Group, usecase domain.ShopUsecase, jwtSecret string) *Ha
 	e.POST("/shops", handler.CreateShop)
 	e.GET("/shops", handler.GetAllShop)
 	e.PUT("/shops/:id", handler.UpdateShop)
-	e.DELETE("shops/:id", handler.DeleteShop)
 
 	return handler
 }
@@ -39,9 +37,6 @@ func (h *Handler) parseID(c echo.Context) (uint, error) {
 
 // POST /shops
 func (h *Handler) CreateShop(c echo.Context) error {
-
-	fmt.Printf("Auth header: %v\n", c.Request().Header.Get("Authorization"))
-	fmt.Printf("User context: %+v\n", c.Get("user"))
 
 	var shop entity.Shop
 
@@ -94,17 +89,4 @@ func (h *Handler) UpdateShop(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{"message": "shop updated", "shop": payload})
-}
-
-func (h *Handler) DeleteShop(c echo.Context) error {
-	id, err := h.parseID(c)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid shop id"})
-	}
-
-	if err := h.usecase.DeleteShop(id); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
-	}
-
-	return c.JSON(http.StatusOK, map[string]string{"message": "shop deleted"})
 }

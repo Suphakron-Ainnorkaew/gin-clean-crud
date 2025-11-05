@@ -7,7 +7,7 @@ import (
 type CourierUsecase interface {
 	CreateCourier(courier *entity.Courier) error
 	GetCourierByID(id uint) (*entity.Courier, error)
-	GETAllCourier() ([]entity.Courier, error)
+	GetAllCourier() ([]entity.Courier, error)
 	UpdateCourier(courier *entity.Courier) error
 	DeleteCourier(id uint) error
 }

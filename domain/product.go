@@ -11,6 +11,7 @@ type ProductUsecase interface {
 	GetShopByUserID(userID uint) (*entity.Shop, error)
 	FindProductByID(id uint) (*entity.Product, error)
 	UpdateProductStock(productID uint, quantity int) error
+	GetProductsByShopID(shopID uint) ([]entity.Product, error)
 }
 
 type ProductRepository interface {
@@ -21,4 +22,5 @@ type ProductRepository interface {
 	//GetProductbyID(id uint) (*entity.Product, error)
 	FindProductByID(id uint) (*entity.Product, error)
 	UpdateProductStock(productID uint, quantity int) error
+	GetProductsByShopID(shopID uint) ([]entity.Product, error)
 }

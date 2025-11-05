@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+    "strconv"
 
 	"go-clean-api/entity"
 
@@ -66,4 +67,48 @@ func RequireRoleFromJWT(allowedRoles ...entity.UserType) echo.MiddlewareFunc {
 			return next(c)
 		}
 	}
+}
+
+func RequireSelfOrAdmin() echo.MiddlewareFunc {
+    return func(next echo.HandlerFunc) echo.HandlerFunc {
+        return func(c echo.Context) error {
+            uidVal := c.Get("user_id")
+            roleVal := c.Get("type_user")
+            if uidVal == nil || roleVal == nil {
+                return c.NoContent(http.StatusUnauthorized)
+            }
+
+            if roleStr, ok := roleVal.(string); ok {
+                if entity.UserType(roleStr) == entity.UserTypeAdmin {
+                    return next(c)
+                }
+            }
+
+            paramID := c.Param("id")
+            if paramID == "" {
+                return c.NoContent(http.StatusForbidden)
+            }
+
+            var uidStr string
+            switch v := uidVal.(type) {
+            case uint:
+                uidStr = strconv.Itoa(int(v))
+            case int:
+                uidStr = strconv.Itoa(v)
+            case int64:
+                uidStr = strconv.Itoa(int(v))
+            case float64:
+                uidStr = strconv.Itoa(int(v))
+            case string:
+                uidStr = v
+            default:
+                return c.NoContent(http.StatusForbidden)
+            }
+
+            if uidStr != paramID {
+                return c.NoContent(http.StatusForbidden)
+            }
+            return next(c)
+        }
+    }
 }

@@ -10,7 +10,6 @@ type ShopUsecase interface {
 	GetShopByID(id uint) (*entity.Shop, error)
 	GetShopByUserID(userID uint) (*entity.Shop, error)
 	UpdateShop(shop *entity.Shop) error
-	DeleteShop(id uint) error
 }
 
 type ShopRepository interface {
@@ -19,7 +18,6 @@ type ShopRepository interface {
 	FindByID(id uint) (*entity.Shop, error)
 	FindByUserID(userID uint) (*entity.Shop, error)
 	Update(shop *entity.Shop) error
-	Delete(id uint) error
 }
 
 // type ShopCacheRepository interface {

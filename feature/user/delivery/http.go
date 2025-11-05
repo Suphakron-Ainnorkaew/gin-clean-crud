@@ -3,6 +3,7 @@ package delivery
 import (
 	"go-clean-api/domain"
 	"go-clean-api/entity"
+	"go-clean-api/middleware"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,20 +17,22 @@ type Handler struct {
 	jwtSecret string
 }
 
-func NewHandler(e *echo.Group, usecase domain.UserUsecase, jwtSecret string) *Handler {
+func NewHandler(public *echo.Group, auth *echo.Group, usecase domain.UserUsecase, jwtSecret string) *Handler {
 	handler := &Handler{
 		usecase:   usecase,
 		jwtSecret: jwtSecret,
 	}
 
-	e.POST("/users", handler.CreateUser)
-	e.GET("/users", handler.GetAllUsers)
-	e.GET("/users/:id", handler.GetUserByID)
-	e.PUT("/users/:id", handler.UpdateUser)
-	e.DELETE("/users/:id", handler.DeleteUser)
+	// Public endpoints
+	public.POST("/users", handler.CreateUser)
+	public.POST("/login", handler.Login)
 
-	e.POST("/login", handler.Login)
-	e.POST("/profile", handler.ProfileUser)
+	// Protected endpoints
+	auth.GET("/users", handler.GetAllUsers, middleware.RequireRoleFromJWT(entity.UserTypeAdmin))
+	auth.GET("/users/:id", handler.GetUserByID, middleware.RequireSelfOrAdmin())
+	auth.PUT("/users/:id", handler.UpdateUser, middleware.RequireRoleFromJWT(entity.UserTypeAdmin))
+	auth.POST("/profile", handler.ProfileUser)
+	auth.DELETE("/users/:id", handler.DeleteUser)
 
 	return handler
 }
@@ -47,7 +50,7 @@ func (h *Handler) CreateUser(c echo.Context) error {
 	var user entity.User
 
 	if err := c.Bind(&user); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
 	if user.Email == "" || user.Password == "" {
@@ -80,7 +83,7 @@ func (h *Handler) GetAllUsers(c echo.Context) error {
 func (h *Handler) GetUserByID(c echo.Context) error {
 	id, err := h.parseID(c)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid user ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
 	}
 
 	user, err := h.usecase.GetUserByID(id)
@@ -88,7 +91,7 @@ func (h *Handler) GetUserByID(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	if user == nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
 	}
 
 	return c.JSON(http.StatusOK, user)
@@ -98,7 +101,7 @@ func (h *Handler) GetUserByID(c echo.Context) error {
 func (h *Handler) UpdateUser(c echo.Context) error {
 	id, err := h.parseID(c)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid user ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
 	}
 
 	user, err := h.usecase.GetUserByID(id)
@@ -106,11 +109,11 @@ func (h *Handler) UpdateUser(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	if user == nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
 	}
 
 	if err := c.Bind(user); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
 	if err := h.usecase.UpdateUser(user); err != nil {
@@ -124,7 +127,7 @@ func (h *Handler) UpdateUser(c echo.Context) error {
 func (h *Handler) DeleteUser(c echo.Context) error {
 	id, err := h.parseID(c)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid user ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
 	}
 
 	if err := h.usecase.DeleteUser(id); err != nil {
@@ -178,13 +181,13 @@ func (h *Handler) ProfileUser(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid token claims"})
 	}
 
-	sub, ok := claims["sub"]
+	uidClaim, ok := claims["user_id"]
 	if !ok {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing subject claim"})
 	}
 
 	var userID uint
-	switch v := sub.(type) {
+	switch v := uidClaim.(type) {
 	case float64:
 		userID = uint(v)
 	case string:

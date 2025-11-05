@@ -57,3 +57,9 @@ func (r *postgresProductRepository) GetShopByUserID(userID uint) (*entity.Shop, 
 	}
 	return &shop, nil
 }
+
+func (r *postgresProductRepository) GetProductsByShopID(shopID uint) ([]entity.Product, error) {
+	var products []entity.Product
+	err := r.db.Where("shop_id = ?", shopID).Find(&products).Error
+	return products, err
+}

@@ -45,6 +45,15 @@ func (r *postgresOrderRepository) FindByUserID(userID uint) ([]entity.Order, err
 	return orders, err
 }
 
+func (r *postgresOrderRepository) FindByShopID(shopID uint) ([]entity.Order, error) {
+	var orders []entity.Order
+	err := r.db.Where("shop_id = ?", shopID).
+		Preload("User").Preload("Shop").Preload("Courier").
+		Preload("OrderItems.Product").
+		Order("created_at DESC").Find(&orders).Error
+	return orders, err
+}
+
 func (r *postgresOrderRepository) Update(order *entity.Order) error {
 	return r.db.Save(order).Error
 }

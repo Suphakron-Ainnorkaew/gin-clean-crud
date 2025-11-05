@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	userDelivery "go-clean-api/feature/user/delivery"
+    userDelivery "go-clean-api/feature/user/delivery"
 	userRepo "go-clean-api/feature/user/repository"
 	userUseCase "go-clean-api/feature/user/usecase"
 
@@ -62,13 +62,15 @@ func init() {
 func main() {
 	e := echo.New()
 
-	v1 := e.Group("/v1")
+	v1Public := e.Group("/v1")
+	v1Auth   := e.Group("/v1", middleware.NewJWTAuth(cfg.Server.JWTSecret))
+
 	//user
 	userUC := userUseCase.NewUserUsecase(
 		userRepo.NewPostgresUserRepository(db),
 		cfg.Server.JWTSecret,
 	)
-	userDelivery.NewHandler(v1, userUC, cfg.Server.JWTSecret)
+    userDelivery.NewHandler(v1Public, v1Auth, userUC, cfg.Server.JWTSecret)
 
 	//shop
 	shopUC := shopUseCase.NewShopUsecase(
@@ -77,22 +79,22 @@ func main() {
 	userFetcher := func(id uint) (*entity.User, error) {
 		return userUC.GetUserByID(id)
 	}
-	v1.Use(middleware.NewJWTAuth(cfg.Server.JWTSecret))
-	shopDelivery.NewHandler(v1, shopUC, cfg.Server.JWTSecret)
+	shopDelivery.NewHandler(v1Auth, shopUC, cfg.Server.JWTSecret)
 
-	//courier
+	// courier
 	courierUC := courierUseCase.NewCourierUsecase(
 		courierRepo.NewPostgresCourierRepository(db),
 	)
-	courierDelivery.NewHandler(v1, courierUC)
+	courierDelivery.NewHandler(v1Auth, courierUC)
 
-	//product
+	// product
 	productUC := productUseCase.NewProductUsecase(
 		productRepo.NewPostgresProductRepository(db),
+		shopRepo.NewPostgresShopRepository(db),
 	)
-	productDelivery.NewHandler(v1, productUC, cfg.Server.JWTSecret, userFetcher)
+	productDelivery.NewHandler(v1Auth, productUC, cfg.Server.JWTSecret, userFetcher)
 
-	//order
+	// order
 	orderUC := orderUseCase.NewOrderUsecase(
 		orderRepo.NewPostgresOrderRepository(db),
 		shopRepo.NewPostgresShopRepository(db),
@@ -100,7 +102,7 @@ func main() {
 		userRepo.NewPostgresUserRepository(db),
 		productRepo.NewPostgresProductRepository(db),
 	)
-	orderDelivery.NewHandler(v1, orderUC, cfg.Server.JWTSecret)
+	orderDelivery.NewHandler(v1Auth, orderUC, cfg.Server.JWTSecret, userFetcher)
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("🌐 starting HTTP server on %s (env=%s)", addr, runEnv)
@@ -123,10 +125,5 @@ func connectDB() error {
 	if err != nil {
 		return errors.Wrap(err, "[Main.connectDB]: failed to connect to database")
 	}
-
-	if migrateErr := db.AutoMigrate(&entity.User{}, &entity.Shop{}, &entity.Product{}, &entity.Courier{}, &entity.Order{}, &entity.OrderItem{}); migrateErr != nil {
-		return errors.Wrap(migrateErr, "[Main.connectDB]: auto migrate failed")
-	}
-
 	return nil
 }

@@ -8,13 +8,16 @@ import (
 
 type productUsecase struct {
 	productRepo domain.ProductRepository
+    shopRepo   domain.ShopRepository
 }
 
 func NewProductUsecase(
-	productRepo domain.ProductRepository,
+    productRepo domain.ProductRepository,
+    shopRepo domain.ShopRepository,
 ) domain.ProductUsecase {
 	return &productUsecase{
-		productRepo: productRepo,
+        productRepo: productRepo,
+        shopRepo:   shopRepo,
 	}
 }
 
@@ -57,5 +60,13 @@ func (u *productUsecase) UpdateProductStock(productID uint, quantity int) error 
 }
 
 func (u *productUsecase) GetShopByUserID(userID uint) (*entity.Shop, error) {
-	return u.productRepo.GetShopByUserID(userID)
+    if u.shopRepo != nil {
+        return u.shopRepo.FindByUserID(userID)
+    }
+    // fallback หากยังไม่ได้ inject shopRepo
+    return u.productRepo.GetShopByUserID(userID)
+}
+
+func (u *productUsecase) GetProductsByShopID(shopID uint) ([]entity.Product, error) {
+	return u.productRepo.GetProductsByShopID(shopID)
 }

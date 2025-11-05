@@ -63,11 +63,3 @@ func (u *shopUsecase) UpdateShop(shop *entity.Shop) error {
 
 	return nil
 }
-
-func (u *shopUsecase) DeleteShop(id uint) error {
-	if err := u.shopRepo.Delete(id); err != nil {
-		return err
-	}
-
-	return nil
-}
