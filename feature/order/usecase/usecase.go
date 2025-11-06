@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"errors"
+	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 )
@@ -12,6 +13,7 @@ type orderUsecase struct {
 	courierRepo domain.CourierRepository
 	userRepo    domain.UserRepository
 	productRepo domain.ProductRepository
+	cfg         config.ToolsConfig
 }
 
 func NewOrderUsecase(
@@ -20,6 +22,7 @@ func NewOrderUsecase(
 	courierRepo domain.CourierRepository,
 	userRepo domain.UserRepository,
 	productRepo domain.ProductRepository,
+	cfg config.ToolsConfig,
 ) domain.OrderUsecase {
 	return &orderUsecase{
 		orderRepo:   orderRepo,
@@ -27,6 +30,7 @@ func NewOrderUsecase(
 		courierRepo: courierRepo,
 		userRepo:    userRepo,
 		productRepo: productRepo,
+		cfg:         cfg,
 	}
 }
 
@@ -73,6 +77,7 @@ func (u *orderUsecase) CreateOrder(order *entity.Order, items []entity.OrderItem
 		}
 
 		if product.Stock < items[i].Quantity {
+			u.cfg.Logrus.WithError(errors.New("insufficient stock for product: " + product.Product_name)).Error("Failed to create order")
 			return errors.New("insufficient stock for product: " + product.Product_name)
 		}
 		itemPrice := product.Price * items[i].Quantity
