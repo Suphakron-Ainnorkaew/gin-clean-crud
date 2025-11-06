@@ -53,7 +53,7 @@ func Load() *Config {
 		},
 		Tools: ToolsConfig{
 			JWTSecret: getEnv("JWT_SECRET", "secret"),
-			Logrus:    logrus.New(),
+			Logrus:    NewLogger(),
 		},
 	}
 }
@@ -75,4 +75,20 @@ func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
 		}
 	}
 	return defaultValue
+}
+
+func NewLogger() *logrus.Logger {
+	log := logrus.New()
+
+	log.SetLevel(logrus.DebugLevel)
+	log.SetOutput(os.Stdout)
+
+	log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "15:04:05",
+		ForceColors:     true,
+		DisableQuote:    true,
+	})
+
+	return log
 }

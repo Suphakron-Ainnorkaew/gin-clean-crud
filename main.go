@@ -78,6 +78,7 @@ func main() {
 	//shop
 	shopUC := shopUseCase.NewShopUsecase(
 		shopRepo.NewPostgresShopRepository(db),
+		cfg.Tools,
 	)
 	userFetcher := func(id uint) (*entity.User, error) {
 		return userUC.GetUserByID(id)
