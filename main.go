@@ -68,7 +68,7 @@ func main() {
 	//user
 	userUC := userUseCase.NewUserUsecase(
 		userRepo.NewPostgresUserRepository(db),
-		cfg.Tools.JWTSecret,
+		cfg.Tools,
 	)
 
 	userH := userDelivery.NewHandler(userUC, cfg.Tools)
