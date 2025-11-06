@@ -104,8 +104,9 @@ func main() {
 		courierRepo.NewPostgresCourierRepository(db),
 		userRepo.NewPostgresUserRepository(db),
 		productRepo.NewPostgresProductRepository(db),
+		cfg.Tools,
 	)
-	orderDelivery.NewHandler(v1Auth, orderUC, cfg.Tools.JWTSecret, userFetcher)
+	orderDelivery.NewHandler(v1Auth, orderUC, cfg.Tools, userFetcher)
 
 	addr := ":" + cfg.Server.Port
 	log.Printf("🌐 starting HTTP server on %s (env=%s)", addr, runEnv)

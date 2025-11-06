@@ -1,6 +1,8 @@
 package delivery
 
 import (
+	"errors"
+	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 	"go-clean-api/middleware"
@@ -11,12 +13,14 @@ import (
 )
 
 type Handler struct {
-	usecase        domain.OrderUsecase
+	usecase domain.OrderUsecase
+	cfg     config.ToolsConfig
 }
 
-func NewHandler(e *echo.Group, usecase domain.OrderUsecase, jwtSecret string, userFetcher middleware.UserFetcher) *Handler {
+func NewHandler(e *echo.Group, usecase domain.OrderUsecase, cfg config.ToolsConfig, userFetcher middleware.UserFetcher) *Handler {
 	handler := &Handler{
 		usecase: usecase,
+		cfg:     cfg,
 	}
 
 	e.POST("/orders", handler.CreateOrder)
@@ -104,6 +108,7 @@ func (h *Handler) CreateOrder(c echo.Context) error {
 	}
 
 	if err := h.usecase.CreateOrder(order, orderItems); err != nil {
+		h.cfg.Logrus.WithError(err).Error("Failed to create order")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -132,6 +137,7 @@ func (h *Handler) GetMyOrders(c echo.Context) error {
 
 	orders, err := h.usecase.GetOrdersByUserID(userID)
 	if err != nil {
+		h.cfg.Logrus.WithError(err).Error("Failed to get orders by user ID")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -180,6 +186,7 @@ func (h *Handler) GetOrderByID(c echo.Context) error {
 
 	order, err := h.usecase.GetOrderByID(uint(orderID))
 	if err != nil {
+		h.cfg.Logrus.WithError(err).Error("Failed to get order by ID")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -206,6 +213,7 @@ func (h *Handler) GetOrderByID(c echo.Context) error {
 	}
 
 	if !hasPermission {
+
 		return c.JSON(http.StatusForbidden, map[string]string{
 			"error": "You don't have permission to view this order",
 		})
@@ -257,6 +265,7 @@ func (h *Handler) UpdateOrderStatus(c echo.Context) error {
 
 	if err := h.usecase.UpdateOrderStatus(uint(orderID), status, userID); err != nil {
 		if err.Error() == "order not found" {
+			h.cfg.Logrus.WithError(errors.New("order not found")).Error("Failed to update order status")
 			return c.JSON(http.StatusNotFound, map[string]string{
 				"error": err.Error(),
 			})
@@ -318,6 +327,7 @@ func (h *Handler) UpdatePaymentStatus(c echo.Context) error {
 
 	if err := h.usecase.UpdatePaymentStatus(uint(orderID), paymentStatus, userID); err != nil {
 		if err.Error() == "order not found" {
+			h.cfg.Logrus.WithError(errors.New("order not found")).Error("Failed to update payment status")
 			return c.JSON(http.StatusNotFound, map[string]string{
 				"error": err.Error(),
 			})
@@ -355,6 +365,7 @@ func (h *Handler) GetShopOrders(c echo.Context) error {
 
 	orders, err := h.usecase.GetShopOrders(userID)
 	if err != nil {
+		h.cfg.Logrus.WithError(err).Error("Failed to get shop orders")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -398,6 +409,7 @@ func (h *Handler) UpdateShopOrderStatus(c echo.Context) error {
 		status != entity.OrderStatusShipped &&
 		status != entity.OrderStatusDelivered &&
 		status != entity.OrderStatusCancelled {
+		h.cfg.Logrus.WithError(errors.New("invalid status")).Error("Failed to update shop order status")
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "Invalid status. Must be: pending, shipped, delivered, or cancelled",
 		})
@@ -449,6 +461,7 @@ func (h *Handler) CancelShopOrder(c echo.Context) error {
 
 	if err := h.usecase.CancelShopOrder(uint(orderID), userID); err != nil {
 		if err.Error() == "order not found" {
+			h.cfg.Logrus.WithError(errors.New("order not found")).Error("Failed to cancel shop order")
 			return c.JSON(http.StatusNotFound, map[string]string{
 				"error": err.Error(),
 			})

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/sirupsen/logrus"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -24,6 +25,7 @@ type ServerConfig struct {
 
 type ToolsConfig struct {
 	JWTSecret string
+	Logrus    *logrus.Logger
 }
 
 type DatabaseConfig struct {
@@ -51,6 +53,7 @@ func Load() *Config {
 		},
 		Tools: ToolsConfig{
 			JWTSecret: getEnv("JWT_SECRET", "secret"),
+			Logrus:    logrus.New(),
 		},
 	}
 }
