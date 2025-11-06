@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/sirupsen/logrus"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -24,6 +25,7 @@ type ServerConfig struct {
 
 type ToolsConfig struct {
 	JWTSecret string
+	Logrus    *logrus.Logger
 }
 
 type DatabaseConfig struct {
@@ -51,6 +53,7 @@ func Load() *Config {
 		},
 		Tools: ToolsConfig{
 			JWTSecret: getEnv("JWT_SECRET", "secret"),
+			Logrus:    NewLogger(),
 		},
 	}
 }
@@ -72,4 +75,20 @@ func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
 		}
 	}
 	return defaultValue
+}
+
+func NewLogger() *logrus.Logger {
+	log := logrus.New()
+
+	log.SetLevel(logrus.DebugLevel)
+	log.SetOutput(os.Stdout)
+
+	log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "15:04:05",
+		ForceColors:     true,
+		DisableQuote:    true,
+	})
+
+	return log
 }
