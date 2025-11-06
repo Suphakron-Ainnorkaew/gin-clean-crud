@@ -87,8 +87,9 @@ func main() {
 	// courier
 	courierUC := courierUseCase.NewCourierUsecase(
 		courierRepo.NewPostgresCourierRepository(db),
+		cfg.Tools,
 	)
-	courierDelivery.NewHandler(v1Auth, courierUC)
+	courierDelivery.NewHandler(v1Auth, courierUC, cfg.Tools)
 
 	// product
 	productUC := productUseCase.NewProductUsecase(
