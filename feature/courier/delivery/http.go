@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 	"go-clean-api/middleware"
@@ -12,11 +13,13 @@ import (
 
 type Handler struct {
 	usecase domain.CourierUsecase
+	cfg     config.ToolsConfig
 }
 
-func NewHandler(e *echo.Group, usecase domain.CourierUsecase) *Handler {
+func NewHandler(e *echo.Group, usecase domain.CourierUsecase, cfg config.ToolsConfig) *Handler {
 	handler := &Handler{
 		usecase: usecase,
+		cfg:     cfg,
 	}
 
 	e.POST("/courier", handler.CreateCourier, middleware.RequireRoleFromJWT(entity.UserTypeAdmin))
@@ -43,6 +46,7 @@ func (h *Handler) CreateCourier(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
 	}
 	if err := h.usecase.CreateCourier(&delivery); err != nil {
+		h.cfg.Logrus.WithError(err).Error("CreateCourier failed")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusCreated, delivery)
@@ -66,6 +70,7 @@ func (h *Handler) GetCourierByID(c echo.Context) error {
 
 	delivery, err := h.usecase.GetCourierByID(id)
 	if err != nil {
+		h.cfg.Logrus.WithError(err).Error("GetCourierByID failed")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, delivery)
@@ -85,6 +90,7 @@ func (h *Handler) UpdateCourier(c echo.Context) error {
 	courier.ID = int(id)
 
 	if err := h.usecase.UpdateCourier(&courier); err != nil {
+		h.cfg.Logrus.WithError(err).Error("UpdateCourier failed")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.NoContent(http.StatusNoContent)
@@ -98,6 +104,7 @@ func (h *Handler) DeleteCourier(c echo.Context) error {
 	}
 
 	if err := h.usecase.DeleteCourier(id); err != nil {
+		h.cfg.Logrus.WithError(err).Error("DeleteCourier failed")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.NoContent(http.StatusNoContent)
