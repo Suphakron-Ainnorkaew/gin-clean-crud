@@ -28,6 +28,7 @@ func NewHandler(e *echo.Group, usecase domain.ShopUsecase, cfg config.ToolsConfi
 
 	e.POST("/shops", handler.CreateShop)
 	e.GET("/shops", handler.GetAllShop)
+	e.GET("/shops/:id", handler.GetShopByID)
 	e.PUT("/shops/:id", handler.UpdateShop)
 
 	return handler
@@ -105,4 +106,27 @@ func (h *Handler) UpdateShop(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{"message": "shop updated", "shop": payload})
+}
+
+// Get shops:id
+func (h *Handler) GetShopByID(c echo.Context) error {
+	log := c.Get("logger").(*logrus.Entry)
+
+	id, err := h.parseID(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid shop id"})
+	}
+
+	shop, err := h.usecase.GetShopByID(log, id)
+
+	if err != nil {
+		log.WithError(err).Error("failed to get shop id in GetShopByID")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if shop == nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "shop not found"})
+	}
+
+	return c.JSON(http.StatusOK, shop)
 }
