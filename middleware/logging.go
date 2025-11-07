@@ -21,8 +21,6 @@ func LoggingMiddleware(log *logrus.Logger) echo.MiddlewareFunc {
 			c.Set("logger", requestLogger)
 			c.Response().Header().Set("X-Request-ID", reqID)
 
-			requestLogger.Info("Request started")
-
 			start := time.Now()
 
 			err := next(c)
@@ -37,10 +35,6 @@ func LoggingMiddleware(log *logrus.Logger) echo.MiddlewareFunc {
 
 			if err != nil {
 				logEntry.WithError(err).Error("Request failed")
-			} else if status >= 400 && status < 500 {
-				logEntry.Warn("Request completed (Client Error)")
-			} else {
-				logEntry.Info("Request finished successfully")
 			}
 
 			return err

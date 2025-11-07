@@ -141,6 +141,7 @@ func (u *userUsecase) Login(log *logrus.Entry, email, password string) (string, 
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		log.WithError(err).Error("Failed to hashpassword user from repo")
 		return "", errors.New("invalid credentials")
 	}
 

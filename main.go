@@ -62,16 +62,18 @@ func init() {
 func main() {
 	e := echo.New()
 
+	e.Use(middleware.LoggingMiddleware(cfg.Tools.Logrus))
+
 	v1Public := e.Group("/v1")
 	v1Auth := e.Group("/v1", middleware.NewJWTAuth(cfg.Tools.JWTSecret))
 
 	//user
 	userUC := userUseCase.NewUserUsecase(
 		userRepo.NewPostgresUserRepository(db),
-		cfg.Tools.JWTSecret,
+		cfg.Tools,
 	)
 
-	userH := userDelivery.NewHandler(userUC, cfg.Tools)
+	userH := userDelivery.NewHandler(v1Auth, userUC, cfg.Tools)
 	userDelivery.RegisterAuthUserRoutes(v1Auth, userH)
 	userDelivery.RegisterPublicUserRoutes(v1Public, userH)
 
@@ -81,7 +83,8 @@ func main() {
 		cfg.Tools,
 	)
 	userFetcher := func(id uint) (*entity.User, error) {
-		return userUC.GetUserByID(id)
+		logger := cfg.Tools.Logrus.WithField("source", "main_user_fetcher")
+		return userUC.GetUserByID(logger, id)
 	}
 	shopDelivery.NewHandler(v1Auth, shopUC, cfg.Tools)
 
