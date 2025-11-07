@@ -1,8 +1,10 @@
 package repository
 
 import (
+	"errors"
 	"go-clean-api/entity"
 
+	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
@@ -18,8 +20,37 @@ func (r *postgresProductRepository) CreateProduct(product *entity.Product) error
 	return r.db.Create(product).Error
 }
 
-func (r *postgresProductRepository) EditProduct(product *entity.Product) error {
-	return r.db.Save(product).Error
+func (r *postgresProductRepository) UpdateProduct(log *logrus.Entry, productID uint, shopID int, changes map[string]interface{}) (*entity.Product, error) {
+
+	var product entity.Product
+	product.ID = int(productID)
+
+	tx := r.db.Model(&product).Where("shop_id = ?", shopID).Updates(changes)
+	if tx.Error != nil {
+		log.WithError(tx.Error).Error("GORM Updates failed")
+		return nil, tx.Error
+	}
+
+	if tx.RowsAffected == 0 {
+
+		var checkProduct entity.Product
+		if err := r.db.First(&checkProduct, productID).Error; err != nil {
+			return nil, errors.New("product not found")
+		}
+
+		if checkProduct.ShopID != shopID {
+			return nil, errors.New("you do not have permission to edit this product")
+		}
+
+		return nil, errors.New("product not found or no changes detected")
+	}
+
+	if err := r.db.First(&product, productID).Error; err != nil {
+		log.WithError(err).Error("Failed to fetch updated product after update")
+		return nil, err
+	}
+
+	return &product, nil
 }
 
 func (r *postgresProductRepository) FindProductByID(id uint) (*entity.Product, error) {

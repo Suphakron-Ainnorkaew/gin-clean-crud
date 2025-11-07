@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 	"go-clean-api/middleware"
@@ -8,15 +9,21 @@ import (
 	"strconv"
 
 	"github.com/labstack/echo/v4"
+	"github.com/sirupsen/logrus"
 )
 
 type Handler struct {
 	usecase domain.ProductUsecase
+	cfg     config.ToolsConfig
 }
 
-func NewHandler(e *echo.Group, usecase domain.ProductUsecase, jwtSecret string, userFetcher middleware.UserFetcher) *Handler {
+func NewHandler(e *echo.Group, usecase domain.ProductUsecase, cfg config.ToolsConfig, userFetcher middleware.UserFetcher) *Handler {
+
+	e.Use(middleware.LoggingMiddleware(cfg.Logrus))
+
 	handler := &Handler{
 		usecase: usecase,
+		cfg:     cfg,
 	}
 
 	e.GET("/products", handler.GetAllProduct)
@@ -36,15 +43,23 @@ func (h *Handler) parseID(c echo.Context) (uint, error) {
 }
 
 func (h *Handler) GetAllProduct(c echo.Context) error {
-	products, err := h.usecase.GetAllProduct()
+
+	log := c.Get("logger").(*logrus.Entry)
+
+	products, err := h.usecase.GetAllProduct(log)
 	if err != nil {
+		log.WithError(err).Error("Failed to get all product")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, products)
 }
 
 func (h *Handler) CreateProduct(c echo.Context) error {
+
+	log := c.Get("logger").(*logrus.Entry)
+
 	userIDVal := c.Get("user_id")
+
 	if userIDVal == nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
 			"error": "user_id not found in context",
@@ -64,7 +79,7 @@ func (h *Handler) CreateProduct(c echo.Context) error {
 		})
 	}
 
-	shop, err := h.usecase.GetShopByUserID(userID)
+	shop, err := h.usecase.GetShopByUserID(log, userID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
@@ -78,7 +93,8 @@ func (h *Handler) CreateProduct(c echo.Context) error {
 
 	product.ShopID = shop.ID
 
-	if err := h.usecase.CreateProduct(&product); err != nil {
+	if err := h.usecase.CreateProduct(log, &product); err != nil {
+		log.WithError(err).Error("failed to create product in CreateProduct")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -95,10 +111,14 @@ func (h *Handler) CreateProduct(c echo.Context) error {
 }
 
 func (h *Handler) EditProduct(c echo.Context) error {
+
+	log := c.Get("logger").(*logrus.Entry)
 	id, err := h.parseID(c)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid product id"})
 	}
+
+	log = log.WithField("product_id", id)
 
 	userIDVal := c.Get("user_id")
 	if userIDVal == nil {
@@ -108,38 +128,52 @@ func (h *Handler) EditProduct(c echo.Context) error {
 	if !ok {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid user_id type"})
 	}
+	log = log.WithField("user_id", userID)
 
-	var payload entity.Product
-	if err := c.Bind(&payload); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-	}
-
-	shop, err := h.usecase.GetShopByUserID(userID)
+	shop, err := h.usecase.GetShopByUserID(log, userID)
 	if err != nil {
+		log.WithError(err).Error("failed to get shop by user id")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	if shop == nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "shop not found for this user"})
 	}
 
-	payload.ID = int(id)
-	payload.ShopID = shop.ID
+	log = log.WithField("shop_id", shop.ID)
 
-	if err := h.usecase.EditProduct(&payload); err != nil {
+	var payload map[string]interface{}
+	if err := c.Bind(&payload); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	delete(payload, "id")
+	delete(payload, "shop_id")
+	delete(payload, "created_at")
+	delete(payload, "updated_at")
+	delete(payload, "deleted_at")
+
+	updatedProduct, err := h.usecase.EditProduct(log, id, shop.ID, payload)
+	if err != nil {
+
+		log.WithError(err).Error("failed to update product in EditProduct")
 		return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{"message": "product updated", "product": payload})
+	return c.JSON(http.StatusOK, map[string]interface{}{"message": "product updated", "product": updatedProduct})
 }
 
 func (h *Handler) GetProductByID(c echo.Context) error {
+
+	log := c.Get("logger").(*logrus.Entry)
+
 	id, err := h.parseID(c)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid product id"})
 	}
 
-	p, err := h.usecase.FindProductByID(id)
+	p, err := h.usecase.FindProductByID(log, id)
 	if err != nil {
+		log.WithError(err).Error("failed to Get product id in GetProductByID")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	if p == nil {
@@ -149,13 +183,15 @@ func (h *Handler) GetProductByID(c echo.Context) error {
 }
 
 func (h *Handler) GetProductsByShopID(c echo.Context) error {
+	log := c.Get("logger").(*logrus.Entry)
 	shopID, err := h.parseID(c)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid shop id"})
 	}
 
-	products, err := h.usecase.GetProductsByShopID(shopID)
+	products, err := h.usecase.GetProductsByShopID(log, shopID)
 	if err != nil {
+		log.WithError(err).Error("Failed to Get product by shop id in GetProductsByShopID")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, products)

@@ -98,8 +98,9 @@ func main() {
 	productUC := productUseCase.NewProductUsecase(
 		productRepo.NewPostgresProductRepository(db),
 		shopRepo.NewPostgresShopRepository(db),
+		cfg.Tools,
 	)
-	productDelivery.NewHandler(v1Auth, productUC, cfg.Tools.JWTSecret, userFetcher)
+	productDelivery.NewHandler(v1Auth, productUC, cfg.Tools, userFetcher)
 
 	// order
 	orderUC := orderUseCase.NewOrderUsecase(
