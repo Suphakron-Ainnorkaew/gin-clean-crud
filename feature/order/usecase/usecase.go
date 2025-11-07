@@ -2,8 +2,11 @@ package usecase
 
 import (
 	"errors"
+	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
+
+	"github.com/sirupsen/logrus"
 )
 
 type orderUsecase struct {
@@ -12,6 +15,7 @@ type orderUsecase struct {
 	courierRepo domain.CourierRepository
 	userRepo    domain.UserRepository
 	productRepo domain.ProductRepository
+	cfg         config.ToolsConfig
 }
 
 func NewOrderUsecase(
@@ -20,6 +24,7 @@ func NewOrderUsecase(
 	courierRepo domain.CourierRepository,
 	userRepo domain.UserRepository,
 	productRepo domain.ProductRepository,
+	cfg config.ToolsConfig,
 ) domain.OrderUsecase {
 	return &orderUsecase{
 		orderRepo:   orderRepo,
@@ -27,10 +32,11 @@ func NewOrderUsecase(
 		courierRepo: courierRepo,
 		userRepo:    userRepo,
 		productRepo: productRepo,
+		cfg:         cfg,
 	}
 }
 
-func (u *orderUsecase) CreateOrder(order *entity.Order, items []entity.OrderItem) error {
+func (u *orderUsecase) CreateOrder(log *logrus.Entry, order *entity.Order, items []entity.OrderItem) error {
 	shop, err := u.shopRepo.FindByID(uint(order.ShopID))
 	if err != nil {
 		return err
@@ -84,6 +90,7 @@ func (u *orderUsecase) CreateOrder(order *entity.Order, items []entity.OrderItem
 	order.Total = total
 
 	if err := u.orderRepo.Create(order); err != nil {
+		log.WithError(err).Error("failed to create order in repo")
 		return err
 	}
 
@@ -104,11 +111,22 @@ func (u *orderUsecase) CreateOrder(order *entity.Order, items []entity.OrderItem
 	return nil
 }
 
-func (u *orderUsecase) GetOrderByID(id uint) (*entity.Order, error) {
-	return u.orderRepo.FindByID(id)
+func (u *orderUsecase) GetOrderByID(log *logrus.Entry, id uint) (*entity.Order, error) {
+	log = log.WithField("order_id", id)
+
+	order, err := u.orderRepo.FindByID(id)
+	if err != nil {
+		log.WithError(err).Error("failed to get order id from repo")
+		return nil, err
+	}
+
+	return order, nil
 }
 
-func (u *orderUsecase) UpdateOrderStatus(orderID uint, status entity.OrderStatus, shopOwnerID uint) error {
+func (u *orderUsecase) UpdateOrderStatus(log *logrus.Entry, orderID uint, status entity.OrderStatus, shopOwnerID uint) error {
+
+	log = log.WithField("oder_id", orderID)
+
 	order, err := u.orderRepo.FindByID(orderID)
 	if err != nil {
 		return err
@@ -119,6 +137,7 @@ func (u *orderUsecase) UpdateOrderStatus(orderID uint, status entity.OrderStatus
 
 	shop, err := u.shopRepo.FindByID(uint(order.ShopID))
 	if err != nil {
+		log.WithError(err).Error("failed to update orderstatus order in repo")
 		return err
 	}
 	if shop == nil {
@@ -129,12 +148,17 @@ func (u *orderUsecase) UpdateOrderStatus(orderID uint, status entity.OrderStatus
 	}
 
 	order.Status = status
+
 	return u.orderRepo.Update(order)
 }
 
-func (u *orderUsecase) UpdatePaymentStatus(orderID uint, status entity.PaymentStatus, userID uint) error {
+func (u *orderUsecase) UpdatePaymentStatus(log *logrus.Entry, orderID uint, status entity.PaymentStatus, userID uint) error {
+
+	log = log.WithField("oder_id", orderID)
+
 	order, err := u.orderRepo.FindByID(orderID)
 	if err != nil {
+		log.WithError(err).Error("failed to UpdatePaymentStatus in repo")
 		return err
 	}
 	if order == nil {
@@ -149,7 +173,10 @@ func (u *orderUsecase) UpdatePaymentStatus(orderID uint, status entity.PaymentSt
 	return u.orderRepo.Update(order)
 }
 
-func (u *orderUsecase) GetShopOrders(shopOwnerID uint) ([]entity.Order, error) {
+func (u *orderUsecase) GetShopOrders(log *logrus.Entry, shopOwnerID uint) ([]entity.Order, error) {
+
+	log = log.WithField("shopowner_id", shopOwnerID)
+
 	shop, err := u.shopRepo.FindByUserID(shopOwnerID)
 	if err != nil {
 		return nil, err
@@ -160,28 +187,55 @@ func (u *orderUsecase) GetShopOrders(shopOwnerID uint) ([]entity.Order, error) {
 
 	orders, err := u.orderRepo.FindByShopID(uint(shop.ID))
 	if err != nil {
+		log.WithError(err).Error("failed to GetShopOrders in repo")
 		return nil, err
 	}
 	return orders, nil
 }
 
-func (u *orderUsecase) UpdateShopOrderStatus(orderID uint, status entity.OrderStatus, shopOwnerID uint) error {
-	return u.UpdateOrderStatus(orderID, status, shopOwnerID)
+func (u *orderUsecase) UpdateShopOrderStatus(log *logrus.Entry, orderID uint, status entity.OrderStatus, shopOwnerID uint) error {
+
+	log = log.WithField("order_id", orderID)
+
+	if err := u.UpdateShopOrderStatus(log, orderID, status, shopOwnerID); err != nil {
+		log.WithError(err).Error("failed to update shop in repo")
+		return err
+	}
+
+	return nil
 }
 
-func (u *orderUsecase) CancelShopOrder(orderID uint, shopOwnerID uint) error {
-	return u.UpdateOrderStatus(orderID, entity.OrderStatusCancelled, shopOwnerID)
+func (u *orderUsecase) CancelShopOrder(log *logrus.Entry, orderID uint, shopOwnerID uint) error {
+	log = log.WithField("order_id", orderID)
+	if err := u.UpdateOrderStatus(log, orderID, entity.OrderStatusCancelled, shopOwnerID); err != nil {
+		log.WithError(err).Error("failed to CancelShopOrder in repo")
+	}
+	return nil
 }
 
-func (u *orderUsecase) GetOrdersByUserID(userID uint) ([]entity.Order, error) {
-	return u.orderRepo.FindByUserID(userID)
+func (u *orderUsecase) GetOrdersByUserID(log *logrus.Entry, userID uint) ([]entity.Order, error) {
+	log = log.WithField("user_id", userID)
+
+	user, err := u.orderRepo.FindByUserID(userID)
+	if err != nil {
+		log.WithError(err).Error("failed to GetOrdersByUserID from repo")
+		return nil, err
+	}
+	return user, nil
 }
 
-func (u *orderUsecase) DeleteOrder(id uint) error {
-	return u.orderRepo.Delete(id)
+func (u *orderUsecase) DeleteOrder(log *logrus.Entry, id uint) error {
+	log = log.WithField("order_id", id)
+
+	if err := u.orderRepo.Delete(id); err != nil {
+		log.WithError(err).Error("failed to DeleteOrder from repo")
+		return nil
+	}
+
+	return nil
 }
 
-func (u *orderUsecase) CanViewOrder(orderID uint, userID uint, userType string) (bool, error) {
+func (u *orderUsecase) CanViewOrder(log *logrus.Entry, orderID uint, userID uint, userType string) (bool, error) {
 	order, err := u.orderRepo.FindByID(orderID)
 	if err != nil {
 		return false, err
