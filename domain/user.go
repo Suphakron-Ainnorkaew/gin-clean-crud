@@ -2,19 +2,21 @@ package domain
 
 import (
 	"go-clean-api/entity"
+
+	"github.com/sirupsen/logrus"
 )
 
 type UserUsecase interface {
-	CreateUser(user *entity.User) error
-	GetAllUsers() ([]entity.User, error)
-	GetUserByID(id uint) (*entity.User, error)
-	UpdateUser(user *entity.User) error
-	DeleteUser(id uint) error
+	CreateUser(log *logrus.Entry, user *entity.User) error
+	GetAllUsers(log *logrus.Entry) ([]entity.User, error)
+	GetUserByID(log *logrus.Entry, id uint) (*entity.User, error)
+	UpdateUser(log *logrus.Entry, user *entity.User) error
+	DeleteUser(log *logrus.Entry, id uint) error
 
-	GetUserByEmail(email string) (*entity.User, error)
-	ValidateUserCredentials(email, password string) (*entity.User, error)
+	GetUserByEmail(log *logrus.Entry, email string) (*entity.User, error)
+	ValidateUserCredentials(log *logrus.Entry, email, password string) (*entity.User, error)
 
-	Login(email, password string) (string, error)
+	Login(log *logrus.Entry, email, password string) (string, error)
 }
 
 type UserRepository interface {

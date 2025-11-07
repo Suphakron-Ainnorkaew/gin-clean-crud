@@ -2,27 +2,31 @@ package usecase
 
 import (
 	"errors"
+	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type userUsecase struct {
-	userRepo  domain.UserRepository
-	jwtSecret string
+	userRepo domain.UserRepository
+	cfg      config.ToolsConfig
 }
 
-func NewUserUsecase(repo domain.UserRepository, jwtSecret string) domain.UserUsecase {
+func NewUserUsecase(repo domain.UserRepository,
+	cfg config.ToolsConfig,
+) domain.UserUsecase {
 	return &userUsecase{
-		userRepo:  repo,
-		jwtSecret: jwtSecret,
+		userRepo: repo,
+		cfg:      cfg,
 	}
 }
 
-func (u *userUsecase) CreateUser(user *entity.User) error {
+func (u *userUsecase) CreateUser(log *logrus.Entry, user *entity.User) error {
 	if user == nil {
 		return errors.New("user is nil")
 	}
@@ -45,17 +49,26 @@ func (u *userUsecase) CreateUser(user *entity.User) error {
 	user.Password = string(hashed)
 
 	if err := u.userRepo.Create(user); err != nil {
+		log.WithError(err).Error("Failed to create shop in repo")
 		return err
 	}
 	return nil
 
 }
 
-func (u *userUsecase) GetAllUsers() ([]entity.User, error) {
-	return u.userRepo.FindAll()
+func (u *userUsecase) GetAllUsers(log *logrus.Entry) ([]entity.User, error) {
+	user, err := u.userRepo.FindAll()
+	if err != nil {
+		log.WithError(err).Error("Failed to get-all user from repo")
+		return nil, err
+	}
+	return user, nil
 }
 
-func (u *userUsecase) GetUserByID(id uint) (*entity.User, error) {
+func (u *userUsecase) GetUserByID(log *logrus.Entry, id uint) (*entity.User, error) {
+
+	log = log.WithField("user_id", id)
+	user, err := u.userRepo.FindByID(id)
 
 	if u == nil {
 		return nil, errors.New("user usecase is nil")
@@ -64,33 +77,51 @@ func (u *userUsecase) GetUserByID(id uint) (*entity.User, error) {
 		return nil, errors.New("user repository is not initialized")
 	}
 
-	return u.userRepo.FindByID(id)
+	if err != nil {
+		log.WithError(err).Error("Failed to get user id from repo")
+		return nil, err
+	}
+
+	return user, nil
 
 }
 
-func (u *userUsecase) UpdateUser(user *entity.User) error {
+func (u *userUsecase) UpdateUser(log *logrus.Entry, user *entity.User) error {
+
+	log = log.WithField("user_id", user.ID)
+
 	if err := u.userRepo.Update(user); err != nil {
+		log.WithError(err).Error("Failed to update user in repo")
 		return err
 	}
 
 	return nil
 }
 
-func (u *userUsecase) DeleteUser(id uint) error {
+func (u *userUsecase) DeleteUser(log *logrus.Entry, id uint) error {
 	if err := u.userRepo.Delete(id); err != nil {
+		log.WithError(err).Error("Failed to delete user in repo")
 		return err
 	}
 
 	return nil
 }
 
-func (u *userUsecase) GetUserByEmail(email string) (*entity.User, error) {
-	return u.userRepo.FindByEmail(email)
+func (u *userUsecase) GetUserByEmail(log *logrus.Entry, email string) (*entity.User, error) {
+
+	user, err := u.userRepo.FindByEmail(email)
+
+	if err != nil {
+		log.WithError(err).Error("Failed to get email user in repo")
+		return user, nil
+	}
+	return user, nil
 }
 
-func (u *userUsecase) ValidateUserCredentials(email, password string) (*entity.User, error) {
+func (u *userUsecase) ValidateUserCredentials(log *logrus.Entry, email, password string) (*entity.User, error) {
 	user, err := u.userRepo.FindByEmail(email)
 	if err != nil {
+		log.WithError(err).Error("Failed to validate user from repo")
 		return nil, err
 	}
 	if user == nil {
@@ -100,7 +131,7 @@ func (u *userUsecase) ValidateUserCredentials(email, password string) (*entity.U
 	return user, nil
 }
 
-func (u *userUsecase) Login(email, password string) (string, error) {
+func (u *userUsecase) Login(log *logrus.Entry, email, password string) (string, error) {
 	user, err := u.userRepo.FindByEmail(email)
 	if err != nil {
 		return "", err
@@ -120,7 +151,7 @@ func (u *userUsecase) Login(email, password string) (string, error) {
 		"exp":       time.Now().Add(24 * time.Hour).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := token.SignedString([]byte(u.jwtSecret))
+	signed, err := token.SignedString([]byte(u.cfg.JWTSecret))
 	if err != nil {
 		return "", err
 	}
