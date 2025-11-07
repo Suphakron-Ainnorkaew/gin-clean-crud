@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 	"go-clean-api/middleware"
@@ -8,15 +9,21 @@ import (
 	"strconv"
 
 	"github.com/labstack/echo/v4"
+	"github.com/sirupsen/logrus"
 )
 
 type Handler struct {
-	usecase        domain.OrderUsecase
+	usecase domain.OrderUsecase
+	cfg     config.ToolsConfig
 }
 
-func NewHandler(e *echo.Group, usecase domain.OrderUsecase, jwtSecret string, userFetcher middleware.UserFetcher) *Handler {
+func NewHandler(e *echo.Group, usecase domain.OrderUsecase, cfg config.ToolsConfig, userFetcher middleware.UserFetcher) *Handler {
+
+	e.Use(middleware.LoggingMiddleware(cfg.Logrus))
+
 	handler := &Handler{
 		usecase: usecase,
+		cfg:     cfg,
 	}
 
 	e.POST("/orders", handler.CreateOrder)
@@ -48,7 +55,11 @@ type OrderItemRequest struct {
 }
 
 func (h *Handler) CreateOrder(c echo.Context) error {
+
+	log := c.Get("logger").(*logrus.Entry)
+
 	userIDVal := c.Get("user_id")
+
 	if userIDVal == nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
 			"error": "user_id not found in context",
@@ -103,7 +114,8 @@ func (h *Handler) CreateOrder(c echo.Context) error {
 		Status:        entity.OrderStatusPending,
 	}
 
-	if err := h.usecase.CreateOrder(order, orderItems); err != nil {
+	if err := h.usecase.CreateOrder(log, order, orderItems); err != nil {
+		log.WithError(err).Error("Failed to create order in CreateOrder")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -117,6 +129,7 @@ func (h *Handler) CreateOrder(c echo.Context) error {
 }
 
 func (h *Handler) GetMyOrders(c echo.Context) error {
+	log := c.Get("logger").(*logrus.Entry)
 	userIDVal := c.Get("user_id")
 	if userIDVal == nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
@@ -130,8 +143,9 @@ func (h *Handler) GetMyOrders(c echo.Context) error {
 		})
 	}
 
-	orders, err := h.usecase.GetOrdersByUserID(userID)
+	orders, err := h.usecase.GetOrdersByUserID(log, userID)
 	if err != nil {
+		log.WithError(err).Error("failed to GetMyOrders")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -145,6 +159,7 @@ func (h *Handler) GetMyOrders(c echo.Context) error {
 
 // GET /orders/:id
 func (h *Handler) GetOrderByID(c echo.Context) error {
+	log := c.Get("logger").(*logrus.Entry)
 	userIDVal := c.Get("user_id")
 	if userIDVal == nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
@@ -178,8 +193,9 @@ func (h *Handler) GetOrderByID(c echo.Context) error {
 		})
 	}
 
-	order, err := h.usecase.GetOrderByID(uint(orderID))
+	order, err := h.usecase.GetOrderByID(log, uint(orderID))
 	if err != nil {
+		log.WithError(err).Error("failed to GetOrderByID")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -216,6 +232,7 @@ func (h *Handler) GetOrderByID(c echo.Context) error {
 
 // PATCH /orders/:id/status - อัพเดทสถานะคำสั่งซื้อ
 func (h *Handler) UpdateOrderStatus(c echo.Context) error {
+	log := c.Get("logger").(*logrus.Entry)
 	userIDVal := c.Get("user_id")
 	if userIDVal == nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
@@ -255,7 +272,7 @@ func (h *Handler) UpdateOrderStatus(c echo.Context) error {
 		})
 	}
 
-	if err := h.usecase.UpdateOrderStatus(uint(orderID), status, userID); err != nil {
+	if err := h.usecase.UpdateOrderStatus(log, uint(orderID), status, userID); err != nil {
 		if err.Error() == "order not found" {
 			return c.JSON(http.StatusNotFound, map[string]string{
 				"error": err.Error(),
@@ -266,6 +283,7 @@ func (h *Handler) UpdateOrderStatus(c echo.Context) error {
 				"error": err.Error(),
 			})
 		}
+		log.WithError(err).Error("failed to updateorder status in UpdateOrderStatus")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -279,6 +297,7 @@ func (h *Handler) UpdateOrderStatus(c echo.Context) error {
 
 // PATCH /orders/:id/payment - อัพเดทสถานะการชำระเงิน
 func (h *Handler) UpdatePaymentStatus(c echo.Context) error {
+	log := c.Get("logger").(*logrus.Entry)
 	userIDVal := c.Get("user_id")
 	if userIDVal == nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
@@ -316,7 +335,7 @@ func (h *Handler) UpdatePaymentStatus(c echo.Context) error {
 		})
 	}
 
-	if err := h.usecase.UpdatePaymentStatus(uint(orderID), paymentStatus, userID); err != nil {
+	if err := h.usecase.UpdatePaymentStatus(log, uint(orderID), paymentStatus, userID); err != nil {
 		if err.Error() == "order not found" {
 			return c.JSON(http.StatusNotFound, map[string]string{
 				"error": err.Error(),
@@ -327,6 +346,7 @@ func (h *Handler) UpdatePaymentStatus(c echo.Context) error {
 				"error": err.Error(),
 			})
 		}
+		log.WithError(err).Error("failed to updatepayment status in UpdatePaymentStatus")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -340,6 +360,8 @@ func (h *Handler) UpdatePaymentStatus(c echo.Context) error {
 
 // GET /shops/orders
 func (h *Handler) GetShopOrders(c echo.Context) error {
+	log := c.Get("logger").(*logrus.Entry)
+
 	userIDVal := c.Get("user_id")
 	if userIDVal == nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
@@ -353,8 +375,9 @@ func (h *Handler) GetShopOrders(c echo.Context) error {
 		})
 	}
 
-	orders, err := h.usecase.GetShopOrders(userID)
+	orders, err := h.usecase.GetShopOrders(log, userID)
 	if err != nil {
+		log.WithError(err).Error("failed to getshop order in GetShopOrders")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -364,6 +387,7 @@ func (h *Handler) GetShopOrders(c echo.Context) error {
 
 // PATCH /shops/orders/:id/status - ร้านค้าอัพเดทสถานะคำสั่งซื้อ
 func (h *Handler) UpdateShopOrderStatus(c echo.Context) error {
+	log := c.Get("logger").(*logrus.Entry)
 	userIDVal := c.Get("user_id")
 	if userIDVal == nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
@@ -403,7 +427,7 @@ func (h *Handler) UpdateShopOrderStatus(c echo.Context) error {
 		})
 	}
 
-	if err := h.usecase.UpdateShopOrderStatus(uint(orderID), status, userID); err != nil {
+	if err := h.usecase.UpdateShopOrderStatus(log, uint(orderID), status, userID); err != nil {
 		if err.Error() == "order not found" {
 			return c.JSON(http.StatusNotFound, map[string]string{
 				"error": err.Error(),
@@ -414,6 +438,7 @@ func (h *Handler) UpdateShopOrderStatus(c echo.Context) error {
 				"error": err.Error(),
 			})
 		}
+		log.WithError(err).Error("failed to updateshop order status in UpdateShopOrderStatus")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -427,6 +452,7 @@ func (h *Handler) UpdateShopOrderStatus(c echo.Context) error {
 
 // PATCH /shops/orders/:id/cancel - ร้านค้ายกเลิกคำสั่งซื้อ
 func (h *Handler) CancelShopOrder(c echo.Context) error {
+	log := c.Get("logger").(*logrus.Entry)
 	userIDVal := c.Get("user_id")
 	if userIDVal == nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
@@ -447,7 +473,7 @@ func (h *Handler) CancelShopOrder(c echo.Context) error {
 		})
 	}
 
-	if err := h.usecase.CancelShopOrder(uint(orderID), userID); err != nil {
+	if err := h.usecase.CancelShopOrder(log, uint(orderID), userID); err != nil {
 		if err.Error() == "order not found" {
 			return c.JSON(http.StatusNotFound, map[string]string{
 				"error": err.Error(),
@@ -458,6 +484,7 @@ func (h *Handler) CancelShopOrder(c echo.Context) error {
 				"error": err.Error(),
 			})
 		}
+		log.WithError(err).Error("failed to cancelshop order in CancelShopOrder")
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
