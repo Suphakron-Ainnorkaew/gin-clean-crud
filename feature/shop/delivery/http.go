@@ -1,7 +1,6 @@
 package delivery
 
 import (
-	"errors"
 	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
@@ -45,22 +44,14 @@ func (h *Handler) parseID(c echo.Context) (uint, error) {
 func (h *Handler) CreateShop(c echo.Context) error {
 	var shop entity.Shop
 
-	log := h.cfg.Logrus.WithFields(logrus.Fields{
-		"endpoint": "POST /shops",
-		"method":   c.Request().Method,
-		"path":     c.Path(),
-	})
-
-	log.Info("Request started")
+	log := c.Get("logger").(*logrus.Entry)
 
 	userID, ok := c.Get("user_id").(uint)
 	if !ok {
-		log.WithError(errors.New("invalid user id")).Error("Failed to create shop: invalid user id")
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid user id")
 	}
 
 	if err := c.Bind(&shop); err != nil {
-		log.WithError(err).Warn("Failed to bind request body")
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "invalid request body",
 		})
@@ -75,7 +66,6 @@ func (h *Handler) CreateShop(c echo.Context) error {
 		})
 	}
 
-	log.WithField("shop_id", shop.ID).Info("Shop created successfully")
 	return c.JSON(http.StatusCreated, shop)
 }
 
@@ -83,7 +73,6 @@ func (h *Handler) CreateShop(c echo.Context) error {
 func (h *Handler) GetAllShop(c echo.Context) error {
 
 	log := c.Get("logger").(*logrus.Entry)
-	log.Info("Request started")
 
 	shops, err := h.usecase.GetAllShop(log)
 	if err != nil {
@@ -91,27 +80,20 @@ func (h *Handler) GetAllShop(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	log.WithField("count", len(shops)).Info("Get all shops successful")
 	return c.JSON(http.StatusOK, shops)
 }
 
 func (h *Handler) UpdateShop(c echo.Context) error {
 
 	log := c.Get("logger").(*logrus.Entry)
-	log.Info("Request started")
 
 	id, err := h.parseID(c)
 	if err != nil {
-
-		log.WithError(err).Warn("invalid shop id in UpdateShop")
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid shop id"})
 	}
 
-	log = log.WithField("shop_id", id)
-
 	var payload entity.Shop
 	if err := c.Bind(&payload); err != nil {
-		log.WithError(err).Warn("Failed to bind request body")
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
@@ -122,6 +104,5 @@ func (h *Handler) UpdateShop(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	log.Info("Update shop success")
 	return c.JSON(http.StatusOK, map[string]interface{}{"message": "shop updated", "shop": payload})
 }
