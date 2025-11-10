@@ -4,13 +4,15 @@ import (
 	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
+	"go-clean-api/utils"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
-	"github.com/sirupsen/logrus"
+	"github.com/labstack/gommon/log"
+	"github.com/pkg/errors"
 )
 
 type Handler struct {
@@ -39,11 +41,10 @@ func (h *Handler) parseID(c echo.Context) (uint, error) {
 // GET /users
 func (h *Handler) GetAllUsers(c echo.Context) error {
 
-	log := c.Get("logger").(*logrus.Entry)
-
 	users, err := h.usecase.GetAllUsers()
 	if err != nil {
-		log.WithError(err).Error("Failed to get all user")
+		err = errors.Wrap(err, "[Handler.GetAllUsers]: failed to get user")
+		log.Warn(err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
@@ -53,19 +54,22 @@ func (h *Handler) GetAllUsers(c echo.Context) error {
 // GET /users/:id
 func (h *Handler) GetUserByID(c echo.Context) error {
 
-	log := c.Get("logger").(*logrus.Entry)
-
 	id, err := h.parseID(c)
 	if err != nil {
+		err = errors.Wrap(err, "[Handler.GetUserByID]: invalid user id")
+		log.Warn(err)
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
 	}
 
 	user, err := h.usecase.GetUserByID(id)
 	if err != nil {
-		log.WithError(err).Error("Failed to Get user id in GetUserByID")
+		err = errors.Wrap(err, "[Handler.GetUserByID]: failed to get user id")
+		log.Warn(err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	if user == nil {
+		err = errors.Wrap(err, "[Handler.GetUserByID]: user not found")
+		log.Warn(err)
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
 	}
 
@@ -75,27 +79,34 @@ func (h *Handler) GetUserByID(c echo.Context) error {
 // PUT /users/:id
 func (h *Handler) UpdateUser(c echo.Context) error {
 
-	log := c.Get("logger").(*logrus.Entry)
-
 	id, err := h.parseID(c)
 	if err != nil {
+		err = errors.Wrap(err, "[Handler.UpdateUser]: invalid user id")
+		log.Warn(err)
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
 	}
 
 	user, err := h.usecase.GetUserByID(id)
 	if err != nil {
+		err = errors.Wrap(err, "[Handler.UpdateUser]: failed to get user id")
+		log.Warn(err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	if user == nil {
+		err = errors.Wrap(err, "[Handler.UpdateUser]: user not found")
+		log.Warn(err)
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
 	}
 
 	if err := c.Bind(user); err != nil {
+		err = errors.Wrap(err, "[Handler.UpdateUser]: invalid request body")
+		log.Warn(err)
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
 	if err := h.usecase.UpdateUser(user); err != nil {
-		log.WithError(err).Error("Failed to update user in UpdateUser")
+		err = errors.Wrap(err, "[Handler.UpdateUser]: failed to update user")
+		log.Error(err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
@@ -105,15 +116,16 @@ func (h *Handler) UpdateUser(c echo.Context) error {
 // DELETE /users/:id
 func (h *Handler) DeleteUser(c echo.Context) error {
 
-	log := c.Get("logger").(*logrus.Entry)
-
 	id, err := h.parseID(c)
 	if err != nil {
+		err = errors.Wrap(err, "[Handler.DeleteUser]: invalid user ID")
+		log.Warn(err)
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
 	}
 
 	if err := h.usecase.DeleteUser(id); err != nil {
-		log.WithError(err).Error("Failed to delete shop in DeleteUser")
+		err = errors.Wrap(err, "[Handler.DeleteUser]: failed to delete user")
+		log.Error(err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
@@ -123,15 +135,13 @@ func (h *Handler) DeleteUser(c echo.Context) error {
 // GET Profile
 func (h *Handler) ProfileUser(c echo.Context) error {
 
-	log := c.Get("logger").(*logrus.Entry)
-
 	auth := c.Request().Header.Get("Authorization")
 	if auth == "" {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing authorization header"})
 	}
 	tokenString := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer"))
 	if tokenString == "" {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing oken"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing token"})
 	}
 
 	secret := h.cfg.JWTSecret
@@ -169,10 +179,13 @@ func (h *Handler) ProfileUser(c echo.Context) error {
 
 	user, err := h.usecase.GetUserByID(userID)
 	if err != nil {
-		log.WithError(err).Error("Failed to load profile in ProfileUser")
+		err = errors.Wrap(err, "[Handler.ProfileUser]: failed to show profile user")
+		log.Error(err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	if user == nil {
+		err = errors.Wrap(err, "[Handler.ProfileUser]: user not found")
+		log.Warn(err)
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
 	}
 
@@ -183,24 +196,36 @@ func (h *Handler) ProfileUser(c echo.Context) error {
 // POST /users
 func (h *Handler) CreateUser(c echo.Context) error {
 
-	log := c.Get("logger").(*logrus.Entry)
-
 	var user entity.User
 
 	if err := c.Bind(&user); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		err = errors.Wrap(err, "[Handler.CreateUser]: failed to bind request body")
+		log.Warn(err)
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 
 	if user.Email == "" || user.Password == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "email and password are required"})
+		err := errors.New("[Handler.CreateUser]: email or password missing")
+		log.Warn(err)
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: "email and password are required",
+		})
 	}
 
 	if err := h.usecase.CreateUser(&user); err != nil {
+		err = errors.Wrap(err, "[Handler.CreateUser]: failed to create user")
+		log.Error(err)
+
 		if err.Error() == "email already in use" {
-			return c.JSON(http.StatusConflict, map[string]string{"error": err.Error()})
+			return c.JSON(http.StatusConflict, entity.ErrorResponse{
+				Message: utils.StandardError(err),
+			})
 		}
-		log.WithError(err).Error("Failed to create user in CreateUser")
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 
 	user.Password = ""
@@ -210,19 +235,23 @@ func (h *Handler) CreateUser(c echo.Context) error {
 
 func (h *Handler) Login(c echo.Context) error {
 
-	log := c.Get("logger").(*logrus.Entry)
-
 	var req struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
+
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+		err = errors.Wrap(err, "[Handler.Login]: failed to bind request body")
+		log.Warn(err)
+
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 
 	token, err := h.usecase.Login(req.Email, req.Password)
 	if err != nil {
-		log.WithError(err).Error("Failed to login in Login")
+		err = errors.Wrap(err, "[Handler.Login]: failed to login")
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]string{"token": token})
