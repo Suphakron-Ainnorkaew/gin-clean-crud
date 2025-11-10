@@ -1,11 +1,13 @@
 package usecase
 
 import (
-	"errors"
 	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 	"time"
+
+	"github.com/labstack/gommon/log"
+	"github.com/pkg/errors"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -35,6 +37,8 @@ func (u *userUsecase) CreateUser(user *entity.User) error {
 
 	existing, err := u.userRepo.FindByEmail(user.Email)
 	if err != nil {
+		err := errors.New("[Usecase.CreateUser]: failed to find email user")
+		log.Warn(err)
 		return err
 	}
 	if existing != nil {
@@ -43,13 +47,18 @@ func (u *userUsecase) CreateUser(user *entity.User) error {
 
 	hashed, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
+		err := errors.New("[Usecase.CreateUser]: failed to generate password user")
+		log.Warn(err)
 		return err
 	}
 	user.Password = string(hashed)
 
 	if err := u.userRepo.Create(user); err != nil {
+		err := errors.Wrap(err, "[Usecase.CreateUser]: failed to create user")
+		log.Error(err)
 		return err
 	}
+
 	return nil
 
 }
@@ -57,7 +66,9 @@ func (u *userUsecase) CreateUser(user *entity.User) error {
 func (u *userUsecase) GetAllUsers() ([]entity.User, error) {
 	user, err := u.userRepo.FindAll()
 	if err != nil {
-		return nil, err
+		wrappedErr := errors.Wrap(err, "[Usecase.GetAllUsers]: failed to get all user")
+		log.Error(wrappedErr)
+		return nil, wrappedErr
 	}
 	return user, nil
 }
@@ -73,6 +84,8 @@ func (u *userUsecase) GetUserByID(id uint) (*entity.User, error) {
 	}
 
 	if err != nil {
+		err := errors.Wrap(err, "[Usecase.GetUserByID]: failed to get user id")
+		log.Error(err)
 		return nil, err
 	}
 
@@ -83,6 +96,8 @@ func (u *userUsecase) GetUserByID(id uint) (*entity.User, error) {
 func (u *userUsecase) UpdateUser(user *entity.User) error {
 
 	if err := u.userRepo.Update(user); err != nil {
+		err := errors.Wrap(err, "[Usecase.UpdateUser]: failed to update user")
+		log.Error(err)
 		return err
 	}
 
@@ -91,6 +106,8 @@ func (u *userUsecase) UpdateUser(user *entity.User) error {
 
 func (u *userUsecase) DeleteUser(id uint) error {
 	if err := u.userRepo.Delete(id); err != nil {
+		err := errors.Wrap(err, "[Usecase.DeleteUser]: failed to delete user")
+		log.Error(err)
 		return err
 	}
 
@@ -102,7 +119,9 @@ func (u *userUsecase) GetUserByEmail(email string) (*entity.User, error) {
 	user, err := u.userRepo.FindByEmail(email)
 
 	if err != nil {
-		return user, nil
+		err := errors.Wrap(err, "[Usecase.GetUserByEmail]: failed to get email user")
+		log.Error(err)
+		return nil, err
 	}
 	return user, nil
 }
@@ -110,6 +129,8 @@ func (u *userUsecase) GetUserByEmail(email string) (*entity.User, error) {
 func (u *userUsecase) ValidateUserCredentials(email, password string) (*entity.User, error) {
 	user, err := u.userRepo.FindByEmail(email)
 	if err != nil {
+		err := errors.Wrap(err, "[Usecase.ValidateUserCredentials]: failed to validate user")
+		log.Error(err)
 		return nil, err
 	}
 	if user == nil {
@@ -122,6 +143,8 @@ func (u *userUsecase) ValidateUserCredentials(email, password string) (*entity.U
 func (u *userUsecase) Login(email, password string) (string, error) {
 	user, err := u.userRepo.FindByEmail(email)
 	if err != nil {
+		err := errors.Wrap(err, "[Usecase.Login]: failed to find email user")
+		log.Warn(err)
 		return "", err
 	}
 	if user == nil {
@@ -141,6 +164,8 @@ func (u *userUsecase) Login(email, password string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString([]byte(u.cfg.JWTSecret))
 	if err != nil {
+		err := errors.Wrap(err, "[Usecase.Login]: failed to login user")
+		log.Error(err)
 		return "", err
 	}
 	return signed, nil
