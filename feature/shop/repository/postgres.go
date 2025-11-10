@@ -4,6 +4,8 @@ import (
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 
+	"github.com/pkg/errors"
+
 	"gorm.io/gorm"
 )
 
@@ -16,43 +18,55 @@ func NewPostgresShopRepository(db *gorm.DB) domain.ShopRepository {
 }
 
 func (r *postgresShopRepository) Create(user *entity.Shop) error {
-	return r.db.Create(user).Error
+	if err := r.db.Create(&user).Error; err != nil {
+		return errors.Wrap(err, "[ShopRepository.Create]: unable to create shop")
+	}
+	return nil
 }
 
 func (r *postgresShopRepository) FindAll() ([]entity.Shop, error) {
 	var shops []entity.Shop
-	err := r.db.Find(&shops).Error
-	return shops, err
+	if err := r.db.Find(&shops).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return shops, errors.Wrap(err, "[ShopRepository.FindAll]: unable to find shop")
+	}
+	return shops, nil
 }
 
 func (r *postgresShopRepository) FindByID(id uint) (*entity.Shop, error) {
 	var shop entity.Shop
-	err := r.db.First(&shop, id).Error
-	if err != nil {
+	if err := r.db.First(&shop, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
-		return nil, err
+		return nil, errors.Wrap(err, "[ShopRepository.FindByID]: unable to find shop id")
 	}
 	return &shop, nil
 }
 
 func (r *postgresShopRepository) FindByUserID(userID uint) (*entity.Shop, error) {
 	var shop entity.Shop
-	err := r.db.Where("user_id = ?", userID).First(&shop).Error
-	if err != nil {
+	if err := r.db.Where("user_id = ?", userID).First(&shop).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
-		return nil, err
+		return nil, errors.Wrap(err, "[ShopRepository.FindByUserID]: unable to find shop by user id")
 	}
 	return &shop, nil
 }
 
 func (r *postgresShopRepository) Update(shop *entity.Shop) error {
-	return r.db.Save(shop).Error
+	if err := r.db.Model(&entity.Shop{}).Where("id = ?", shop.ID).Updates(&shop).Error; err != nil {
+		return errors.Wrap(err, "[ShopRepository.Update]: unable to update shop")
+	}
+	return nil
 }
 
 func (r *postgresShopRepository) Delete(id uint) error {
-	return r.db.Delete(&entity.Shop{}, id).Error
+	if err := r.db.Delete(&entity.Shop{}, id).Error; err != nil {
+		return errors.Wrap(err, "[ShopRepository.Delete]: unable to Delete shop")
+	}
+	return nil
 }
