@@ -28,6 +28,7 @@ func NewHandler(e *echo.Group, usecase domain.ShopUsecase, cfg config.ToolsConfi
 
 	e.POST("/shops", handler.CreateShop)
 	e.GET("/shops", handler.GetAllShop)
+	e.GET("/shops/:id", handler.GetShopByID)
 	e.PUT("/shops/:id", handler.UpdateShop)
 
 	return handler
