@@ -4,7 +4,6 @@ import (
 	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
-	"go-clean-api/middleware"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,8 +19,6 @@ type Handler struct {
 }
 
 func NewHandler(e *echo.Group, usecase domain.UserUsecase, cfg config.ToolsConfig) *Handler {
-
-	e.Use(middleware.LoggingMiddleware(cfg.Logrus))
 
 	handler := &Handler{
 		usecase: usecase,
@@ -44,7 +41,7 @@ func (h *Handler) GetAllUsers(c echo.Context) error {
 
 	log := c.Get("logger").(*logrus.Entry)
 
-	users, err := h.usecase.GetAllUsers(log)
+	users, err := h.usecase.GetAllUsers()
 	if err != nil {
 		log.WithError(err).Error("Failed to get all user")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -63,7 +60,7 @@ func (h *Handler) GetUserByID(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
 	}
 
-	user, err := h.usecase.GetUserByID(log, id)
+	user, err := h.usecase.GetUserByID(id)
 	if err != nil {
 		log.WithError(err).Error("Failed to Get user id in GetUserByID")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -85,7 +82,7 @@ func (h *Handler) UpdateUser(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
 	}
 
-	user, err := h.usecase.GetUserByID(log, id)
+	user, err := h.usecase.GetUserByID(id)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
@@ -97,7 +94,7 @@ func (h *Handler) UpdateUser(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
-	if err := h.usecase.UpdateUser(log, user); err != nil {
+	if err := h.usecase.UpdateUser(user); err != nil {
 		log.WithError(err).Error("Failed to update user in UpdateUser")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
@@ -115,7 +112,7 @@ func (h *Handler) DeleteUser(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
 	}
 
-	if err := h.usecase.DeleteUser(log, id); err != nil {
+	if err := h.usecase.DeleteUser(id); err != nil {
 		log.WithError(err).Error("Failed to delete shop in DeleteUser")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
@@ -170,7 +167,7 @@ func (h *Handler) ProfileUser(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid subject claim type"})
 	}
 
-	user, err := h.usecase.GetUserByID(log, userID)
+	user, err := h.usecase.GetUserByID(userID)
 	if err != nil {
 		log.WithError(err).Error("Failed to load profile in ProfileUser")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -198,7 +195,7 @@ func (h *Handler) CreateUser(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "email and password are required"})
 	}
 
-	if err := h.usecase.CreateUser(log, &user); err != nil {
+	if err := h.usecase.CreateUser(&user); err != nil {
 		if err.Error() == "email already in use" {
 			return c.JSON(http.StatusConflict, map[string]string{"error": err.Error()})
 		}
@@ -223,7 +220,7 @@ func (h *Handler) Login(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
 	}
 
-	token, err := h.usecase.Login(log, req.Email, req.Password)
+	token, err := h.usecase.Login(req.Email, req.Password)
 	if err != nil {
 		log.WithError(err).Error("Failed to login in Login")
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})

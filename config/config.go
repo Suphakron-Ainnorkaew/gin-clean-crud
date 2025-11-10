@@ -25,7 +25,6 @@ type ServerConfig struct {
 
 type ToolsConfig struct {
 	JWTSecret string
-	Logrus    *logrus.Logger
 }
 
 type DatabaseConfig struct {
@@ -53,7 +52,6 @@ func Load() *Config {
 		},
 		Tools: ToolsConfig{
 			JWTSecret: getEnv("JWT_SECRET", "secret"),
-			Logrus:    NewLogger(),
 		},
 	}
 }

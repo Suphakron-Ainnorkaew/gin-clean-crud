@@ -62,8 +62,6 @@ func init() {
 func main() {
 	e := echo.New()
 
-	e.Use(middleware.LoggingMiddleware(cfg.Tools.Logrus))
-
 	v1Public := e.Group("/v1")
 	v1Auth := e.Group("/v1", middleware.NewJWTAuth(cfg.Tools.JWTSecret))
 
@@ -83,16 +81,16 @@ func main() {
 		cfg.Tools,
 	)
 	userFetcher := func(id uint) (*entity.User, error) {
-		logger := cfg.Tools.Logrus.WithField("source", "main_user_fetcher")
-		return userUC.GetUserByID(logger, id)
+		return userUC.GetUserByID(id)
 	}
 	shopDelivery.NewHandler(v1Auth, shopUC, cfg.Tools)
 
 	// courier
 	courierUC := courierUseCase.NewCourierUsecase(
 		courierRepo.NewPostgresCourierRepository(db),
+		cfg.Tools,
 	)
-	courierDelivery.NewHandler(v1Auth, courierUC)
+	courierDelivery.NewHandler(v1Auth, courierUC, cfg.Tools)
 
 	// product
 	productUC := productUseCase.NewProductUsecase(

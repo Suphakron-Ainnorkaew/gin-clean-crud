@@ -2,16 +2,14 @@ package domain
 
 import (
 	"go-clean-api/entity"
-
-	"github.com/sirupsen/logrus"
 )
 
 type ShopUsecase interface {
-	CreateShop(log *logrus.Entry, shop *entity.Shop) error
-	GetAllShop(log *logrus.Entry) ([]entity.Shop, error)
-	GetShopByID(log *logrus.Entry, id uint) (*entity.Shop, error)
-	GetShopByUserID(log *logrus.Entry, userID uint) (*entity.Shop, error)
-	UpdateShop(log *logrus.Entry, shop *entity.Shop) error
+	CreateShop(shop *entity.Shop) error
+	GetAllShop() ([]entity.Shop, error)
+	GetShopByID(id uint) (*entity.Shop, error)
+	GetShopByUserID(userID uint) (*entity.Shop, error)
+	UpdateShop(shop *entity.Shop) error
 }
 
 type ShopRepository interface {

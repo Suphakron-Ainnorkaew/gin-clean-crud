@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"go-clean-api/config"
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 	"go-clean-api/middleware"
@@ -12,11 +13,14 @@ import (
 
 type Handler struct {
 	usecase domain.CourierUsecase
+	cfg     config.ToolsConfig
 }
 
-func NewHandler(e *echo.Group, usecase domain.CourierUsecase) *Handler {
+func NewHandler(e *echo.Group, usecase domain.CourierUsecase, cfg config.ToolsConfig) *Handler {
+
 	handler := &Handler{
 		usecase: usecase,
+		cfg:     cfg,
 	}
 
 	e.POST("/courier", handler.CreateCourier, middleware.RequireRoleFromJWT(entity.UserTypeAdmin))
@@ -37,6 +41,7 @@ func (h *Handler) parseID(c echo.Context) (uint, error) {
 
 // POST /Courier
 func (h *Handler) CreateCourier(c echo.Context) error {
+
 	var delivery entity.Courier
 
 	if err := c.Bind(&delivery); err != nil {
@@ -50,6 +55,7 @@ func (h *Handler) CreateCourier(c echo.Context) error {
 
 // GET /Courier
 func (h *Handler) GETAllCourier(c echo.Context) error {
+
 	deliveries, err := h.usecase.GetAllCourier()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -59,6 +65,7 @@ func (h *Handler) GETAllCourier(c echo.Context) error {
 
 // GET /Courier/:id
 func (h *Handler) GetCourierByID(c echo.Context) error {
+
 	id, err := h.parseID(c)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid delivery ID"})

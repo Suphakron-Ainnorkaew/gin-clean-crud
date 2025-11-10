@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -26,7 +25,7 @@ func NewUserUsecase(repo domain.UserRepository,
 	}
 }
 
-func (u *userUsecase) CreateUser(log *logrus.Entry, user *entity.User) error {
+func (u *userUsecase) CreateUser(user *entity.User) error {
 	if user == nil {
 		return errors.New("user is nil")
 	}
@@ -49,25 +48,21 @@ func (u *userUsecase) CreateUser(log *logrus.Entry, user *entity.User) error {
 	user.Password = string(hashed)
 
 	if err := u.userRepo.Create(user); err != nil {
-		log.WithError(err).Error("Failed to create shop in repo")
 		return err
 	}
 	return nil
 
 }
 
-func (u *userUsecase) GetAllUsers(log *logrus.Entry) ([]entity.User, error) {
+func (u *userUsecase) GetAllUsers() ([]entity.User, error) {
 	user, err := u.userRepo.FindAll()
 	if err != nil {
-		log.WithError(err).Error("Failed to get-all user from repo")
 		return nil, err
 	}
 	return user, nil
 }
 
-func (u *userUsecase) GetUserByID(log *logrus.Entry, id uint) (*entity.User, error) {
-
-	log = log.WithField("user_id", id)
+func (u *userUsecase) GetUserByID(id uint) (*entity.User, error) {
 	user, err := u.userRepo.FindByID(id)
 
 	if u == nil {
@@ -78,7 +73,6 @@ func (u *userUsecase) GetUserByID(log *logrus.Entry, id uint) (*entity.User, err
 	}
 
 	if err != nil {
-		log.WithError(err).Error("Failed to get user id from repo")
 		return nil, err
 	}
 
@@ -86,42 +80,36 @@ func (u *userUsecase) GetUserByID(log *logrus.Entry, id uint) (*entity.User, err
 
 }
 
-func (u *userUsecase) UpdateUser(log *logrus.Entry, user *entity.User) error {
-
-	log = log.WithField("user_id", user.ID)
+func (u *userUsecase) UpdateUser(user *entity.User) error {
 
 	if err := u.userRepo.Update(user); err != nil {
-		log.WithError(err).Error("Failed to update user in repo")
 		return err
 	}
 
 	return nil
 }
 
-func (u *userUsecase) DeleteUser(log *logrus.Entry, id uint) error {
+func (u *userUsecase) DeleteUser(id uint) error {
 	if err := u.userRepo.Delete(id); err != nil {
-		log.WithError(err).Error("Failed to delete user in repo")
 		return err
 	}
 
 	return nil
 }
 
-func (u *userUsecase) GetUserByEmail(log *logrus.Entry, email string) (*entity.User, error) {
+func (u *userUsecase) GetUserByEmail(email string) (*entity.User, error) {
 
 	user, err := u.userRepo.FindByEmail(email)
 
 	if err != nil {
-		log.WithError(err).Error("Failed to get email user in repo")
 		return user, nil
 	}
 	return user, nil
 }
 
-func (u *userUsecase) ValidateUserCredentials(log *logrus.Entry, email, password string) (*entity.User, error) {
+func (u *userUsecase) ValidateUserCredentials(email, password string) (*entity.User, error) {
 	user, err := u.userRepo.FindByEmail(email)
 	if err != nil {
-		log.WithError(err).Error("Failed to validate user from repo")
 		return nil, err
 	}
 	if user == nil {
@@ -131,7 +119,7 @@ func (u *userUsecase) ValidateUserCredentials(log *logrus.Entry, email, password
 	return user, nil
 }
 
-func (u *userUsecase) Login(log *logrus.Entry, email, password string) (string, error) {
+func (u *userUsecase) Login(email, password string) (string, error) {
 	user, err := u.userRepo.FindByEmail(email)
 	if err != nil {
 		return "", err
@@ -141,7 +129,6 @@ func (u *userUsecase) Login(log *logrus.Entry, email, password string) (string, 
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		log.WithError(err).Error("Failed to hashpassword user from repo")
 		return "", errors.New("invalid credentials")
 	}
 
