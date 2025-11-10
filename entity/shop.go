@@ -21,3 +21,7 @@ type Shop struct {
 
 	Products []Product `json:"products,omitempty" gorm:"foreignKey:ShopID"`
 }
+
+type ErrorResponse struct {
+	Message string `json:"message"`
+}
