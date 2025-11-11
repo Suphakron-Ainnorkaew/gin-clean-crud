@@ -4,6 +4,8 @@ import (
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 
+	"github.com/pkg/errors"
+
 	"gorm.io/gorm"
 )
 
@@ -16,31 +18,45 @@ func NewPostgresCourierRepository(db *gorm.DB) domain.CourierRepository {
 }
 
 func (r *postgresCourierRepository) Create(courier *entity.Courier) error {
-	return r.db.Create(courier).Error
+	if err := r.db.Create(&courier).Error; err != nil {
+		return errors.Wrap(err, "[CourierRepository.Create]: unable to create courier")
+	}
+	return nil
 }
 
 func (r *postgresCourierRepository) GetByID(id uint) (*entity.Courier, error) {
 	var courier entity.Courier
-	err := r.db.First(&courier, id).Error
-	if err != nil {
+	if err := r.db.First(&courier, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
-		return nil, err
+		return nil, errors.Wrap(err, "[CourierRepository.GetByID]: unable to get courier id")
 	}
+
 	return &courier, nil
 }
 
 func (r *postgresCourierRepository) GetAll() ([]entity.Courier, error) {
 	var couriers []entity.Courier
-	err := r.db.Find(&couriers).Error
-	return couriers, err
+	if err := r.db.Find(&couriers).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return couriers, errors.Wrap(err, "[CourierRepository.GetAll]: unable to get courier")
+	}
+	return couriers, nil
 }
 
 func (r *postgresCourierRepository) Update(courier *entity.Courier) error {
-	return r.db.Save(courier).Error
+	if err := r.db.Model(&entity.Courier{}).Where("id = ?", courier.ID).Updates(&courier).Error; err != nil {
+		return errors.Wrap(err, "[CourierRepository.Update]: unable to update courier")
+	}
+	return nil
 }
 
 func (r *postgresCourierRepository) Delete(id uint) error {
-	return r.db.Delete(&entity.Courier{}, id).Error
+	if err := r.db.Delete(&entity.Courier{}, id).Error; err != nil {
+		return errors.Wrap(err, "[CourierRepository.Delete]: unable to Delete courier")
+	}
+	return nil
 }

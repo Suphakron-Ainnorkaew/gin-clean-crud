@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/sirupsen/logrus"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -73,20 +72,4 @@ func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
 		}
 	}
 	return defaultValue
-}
-
-func NewLogger() *logrus.Logger {
-	log := logrus.New()
-
-	log.SetLevel(logrus.DebugLevel)
-	log.SetOutput(os.Stdout)
-
-	log.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp:   true,
-		TimestampFormat: "15:04:05",
-		ForceColors:     true,
-		DisableQuote:    true,
-	})
-
-	return log
 }
