@@ -45,7 +45,9 @@ func (h *Handler) GetAllUsers(c echo.Context) error {
 	if err != nil {
 		err = errors.Wrap(err, "[Handler.GetAllUsers]: failed to get user")
 		log.Warn(err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 
 	return c.JSON(http.StatusOK, users)
@@ -58,19 +60,25 @@ func (h *Handler) GetUserByID(c echo.Context) error {
 	if err != nil {
 		err = errors.Wrap(err, "[Handler.GetUserByID]: invalid user id")
 		log.Warn(err)
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 
 	user, err := h.usecase.GetUserByID(id)
 	if err != nil {
 		err = errors.Wrap(err, "[Handler.GetUserByID]: failed to get user id")
 		log.Warn(err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 	if user == nil {
 		err = errors.Wrap(err, "[Handler.GetUserByID]: user not found")
 		log.Warn(err)
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
+		return c.JSON(http.StatusNotFound, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 
 	return c.JSON(http.StatusOK, user)
@@ -83,31 +91,41 @@ func (h *Handler) UpdateUser(c echo.Context) error {
 	if err != nil {
 		err = errors.Wrap(err, "[Handler.UpdateUser]: invalid user id")
 		log.Warn(err)
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 
 	user, err := h.usecase.GetUserByID(id)
 	if err != nil {
 		err = errors.Wrap(err, "[Handler.UpdateUser]: failed to get user id")
 		log.Warn(err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 	if user == nil {
 		err = errors.Wrap(err, "[Handler.UpdateUser]: user not found")
 		log.Warn(err)
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
+		return c.JSON(http.StatusNotFound, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 
 	if err := c.Bind(user); err != nil {
 		err = errors.Wrap(err, "[Handler.UpdateUser]: invalid request body")
 		log.Warn(err)
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 
 	if err := h.usecase.UpdateUser(user); err != nil {
 		err = errors.Wrap(err, "[Handler.UpdateUser]: failed to update user")
 		log.Error(err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 
 	return c.JSON(http.StatusOK, user)
@@ -120,13 +138,17 @@ func (h *Handler) DeleteUser(c echo.Context) error {
 	if err != nil {
 		err = errors.Wrap(err, "[Handler.DeleteUser]: invalid user ID")
 		log.Warn(err)
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 
 	if err := h.usecase.DeleteUser(id); err != nil {
 		err = errors.Wrap(err, "[Handler.DeleteUser]: failed to delete user")
 		log.Error(err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 
 	return c.NoContent(http.StatusNoContent)
@@ -181,12 +203,16 @@ func (h *Handler) ProfileUser(c echo.Context) error {
 	if err != nil {
 		err = errors.Wrap(err, "[Handler.ProfileUser]: failed to show profile user")
 		log.Error(err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 	if user == nil {
 		err = errors.Wrap(err, "[Handler.ProfileUser]: user not found")
 		log.Warn(err)
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
+		return c.JSON(http.StatusNotFound, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 
 	user.Password = ""
@@ -210,7 +236,7 @@ func (h *Handler) CreateUser(c echo.Context) error {
 		err := errors.New("[Handler.CreateUser]: email or password missing")
 		log.Warn(err)
 		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
-			Message: "email and password are required",
+			Message: utils.StandardError(err),
 		})
 	}
 
@@ -252,7 +278,10 @@ func (h *Handler) Login(c echo.Context) error {
 	token, err := h.usecase.Login(req.Email, req.Password)
 	if err != nil {
 		err = errors.Wrap(err, "[Handler.Login]: failed to login")
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+		log.Error(err)
+		return c.JSON(http.StatusUnauthorized, entity.ErrorResponse{
+			Message: utils.StandardError(err),
+		})
 	}
 	return c.JSON(http.StatusOK, map[string]string{"token": token})
 }
