@@ -4,14 +4,17 @@ import (
 	"go-clean-api/domain"
 	"go-clean-api/entity"
 	"go-clean-api/middleware"
+	"go-clean-api/utils"
 	"net/http"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/gommon/log"
+	"github.com/pkg/errors"
 )
 
 type Handler struct {
-	usecase        domain.OrderUsecase
+	usecase domain.OrderUsecase
 }
 
 func NewHandler(e *echo.Group, usecase domain.OrderUsecase, jwtSecret string, userFetcher middleware.UserFetcher) *Handler {
@@ -54,6 +57,7 @@ func (h *Handler) CreateOrder(c echo.Context) error {
 			"error": "user_id not found in context",
 		})
 	}
+
 	userID, ok := userIDVal.(uint)
 	if !ok {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
@@ -76,8 +80,9 @@ func (h *Handler) CreateOrder(c echo.Context) error {
 
 	var req CreateOrderRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid request body",
+		err = errors.Wrap(err, "[Handler.CreateOrder]: invalid request body")
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
@@ -104,8 +109,10 @@ func (h *Handler) CreateOrder(c echo.Context) error {
 	}
 
 	if err := h.usecase.CreateOrder(order, orderItems); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
+		err = errors.Wrap(err, "[Handler.CreateOrder]: failed to create order")
+		log.Warn(err)
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
@@ -132,8 +139,10 @@ func (h *Handler) GetMyOrders(c echo.Context) error {
 
 	orders, err := h.usecase.GetOrdersByUserID(userID)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
+		err = errors.Wrap(err, "[Handler.GetMyOrders]: failed to get order")
+		log.Warn(err)
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
@@ -180,13 +189,17 @@ func (h *Handler) GetOrderByID(c echo.Context) error {
 
 	order, err := h.usecase.GetOrderByID(uint(orderID))
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
+		err = errors.Wrap(err, "[Handler.GetOrderByID]: failed to get order id")
+		log.Warn(err)
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 	if order == nil {
-		return c.JSON(http.StatusNotFound, map[string]string{
-			"error": "Order not found",
+		err = errors.Wrap(err, "[Handler.GetOrderByID]: order not found")
+		log.Warn(err)
+		return c.JSON(http.StatusNotFound, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
@@ -231,8 +244,10 @@ func (h *Handler) UpdateOrderStatus(c echo.Context) error {
 
 	orderID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid order ID",
+		err = errors.Wrap(err, "[Handler.UpdateOrderStatus]: Invalid order ID")
+		log.Warn(err)
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
@@ -240,8 +255,10 @@ func (h *Handler) UpdateOrderStatus(c echo.Context) error {
 		Status string `json:"status" validate:"required"`
 	}
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid request body",
+		err = errors.Wrap(err, "[Handler.UpdateOrderStatus]: invalid request body")
+		log.Warn(err)
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
@@ -250,24 +267,32 @@ func (h *Handler) UpdateOrderStatus(c echo.Context) error {
 		status != entity.OrderStatusShipped &&
 		status != entity.OrderStatusDelivered &&
 		status != entity.OrderStatusCancelled {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid status. Must be: pending, shipped, delivered, or cancelled",
+		err = errors.Wrap(err, "[Handler.UpdateOrderStatus]: Invalid status. Must be: pending, shipped, delivered, or cancelled")
+		log.Warn(err)
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
 	if err := h.usecase.UpdateOrderStatus(uint(orderID), status, userID); err != nil {
 		if err.Error() == "order not found" {
-			return c.JSON(http.StatusNotFound, map[string]string{
-				"error": err.Error(),
+			err = errors.Wrap(err, "[Handler.UpdateOrderStatus]: order not found")
+			log.Warn(err)
+			return c.JSON(http.StatusNotFound, entity.ErrorResponse{
+				Message: utils.StandardError(err),
 			})
 		}
 		if err.Error() == "you don't have permission to update this order status" {
-			return c.JSON(http.StatusForbidden, map[string]string{
-				"error": err.Error(),
+			err = errors.Wrap(err, "[Handler.UpdateOrderStatus]: user don't have permission to update this order status")
+			log.Warn(err)
+			return c.JSON(http.StatusForbidden, entity.ErrorResponse{
+				Message: utils.StandardError(err),
 			})
 		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
+		err = errors.Wrap(err, "[Handler.UpdateOrderStatus]: failed to update order status")
+		log.Warn(err)
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
@@ -303,32 +328,42 @@ func (h *Handler) UpdatePaymentStatus(c echo.Context) error {
 		PaymentStatus string `json:"payment_status" validate:"required"`
 	}
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid request body",
+		err = errors.Wrap(err, "[Handler.UpdatePaymentStatus]: invalid request body")
+		log.Warn(err)
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
 	paymentStatus := entity.PaymentStatus(req.PaymentStatus)
 	if paymentStatus != entity.PaymentStatusPending &&
 		paymentStatus != entity.PaymentStatusComplete {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid payment status. Must be: pending or complete",
+		err = errors.Wrap(err, "[Handler.UpdatePaymentStatus]: invalid payment status. Must be: pending or complete")
+		log.Warn(err)
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
 	if err := h.usecase.UpdatePaymentStatus(uint(orderID), paymentStatus, userID); err != nil {
 		if err.Error() == "order not found" {
-			return c.JSON(http.StatusNotFound, map[string]string{
-				"error": err.Error(),
+			err = errors.Wrap(err, "[Handler.UpdatePaymentStatus]: order not found")
+			log.Warn(err)
+			return c.JSON(http.StatusNotFound, entity.ErrorResponse{
+				Message: utils.StandardError(err),
 			})
 		}
 		if err.Error() == "you don't have permission to update this payment status" {
-			return c.JSON(http.StatusForbidden, map[string]string{
-				"error": err.Error(),
+			err = errors.Wrap(err, "[Handler.UpdatePaymentStatus]: user don't have permission to update this payment status")
+			log.Warn(err)
+			return c.JSON(http.StatusForbidden, entity.ErrorResponse{
+				Message: utils.StandardError(err),
 			})
 		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
+		err = errors.Wrap(err, "[Handler.UpdatePaymentStatus]: failed to update payment status")
+		log.Warn(err)
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
@@ -355,8 +390,10 @@ func (h *Handler) GetShopOrders(c echo.Context) error {
 
 	orders, err := h.usecase.GetShopOrders(userID)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
+		err = errors.Wrap(err, "[Handler.GetShopOrders]: failed to get shop order")
+		log.Warn(err)
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 	return c.JSON(http.StatusOK, orders)
@@ -379,8 +416,10 @@ func (h *Handler) UpdateShopOrderStatus(c echo.Context) error {
 
 	orderID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid order ID",
+		err = errors.Wrap(err, "[Handler.UpdateShopOrderStatus]: invalid order ID")
+		log.Warn(err)
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
@@ -388,8 +427,10 @@ func (h *Handler) UpdateShopOrderStatus(c echo.Context) error {
 		Status string `json:"status" validate:"required"`
 	}
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid request body",
+		err = errors.Wrap(err, "[Handler.UpdateShopOrderStatus]: invalid request body")
+		log.Warn(err)
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
@@ -398,24 +439,32 @@ func (h *Handler) UpdateShopOrderStatus(c echo.Context) error {
 		status != entity.OrderStatusShipped &&
 		status != entity.OrderStatusDelivered &&
 		status != entity.OrderStatusCancelled {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid status. Must be: pending, shipped, delivered, or cancelled",
+		err = errors.Wrap(err, "[Handler.UpdateShopOrderStatus]: invalid status. Must be: pending, shipped, delivered, or cancelled")
+		log.Warn(err)
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
 	if err := h.usecase.UpdateShopOrderStatus(uint(orderID), status, userID); err != nil {
 		if err.Error() == "order not found" {
-			return c.JSON(http.StatusNotFound, map[string]string{
-				"error": err.Error(),
+			err = errors.Wrap(err, "[Handler.UpdateShopOrderStatus]: order not found")
+			log.Warn(err)
+			return c.JSON(http.StatusNotFound, entity.ErrorResponse{
+				Message: utils.StandardError(err),
 			})
 		}
 		if err.Error() == "you don't have permission to update this order status" {
-			return c.JSON(http.StatusForbidden, map[string]string{
-				"error": err.Error(),
+			err = errors.Wrap(err, "[Handler.UpdateShopOrderStatus]: user don't have permission to update this order status")
+			log.Warn(err)
+			return c.JSON(http.StatusForbidden, entity.ErrorResponse{
+				Message: utils.StandardError(err),
 			})
 		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
+		err = errors.Wrap(err, "[Handler.UpdateShopOrderStatus]: failed to update order by shop")
+		log.Warn(err)
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
@@ -442,24 +491,31 @@ func (h *Handler) CancelShopOrder(c echo.Context) error {
 
 	orderID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid order ID",
+		err = errors.Wrap(err, "[Handler.CancelShopOrder]: invalid order ID")
+		log.Warn(err)
+		return c.JSON(http.StatusBadRequest, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
 	if err := h.usecase.CancelShopOrder(uint(orderID), userID); err != nil {
 		if err.Error() == "order not found" {
-			return c.JSON(http.StatusNotFound, map[string]string{
-				"error": err.Error(),
+			err = errors.Wrap(err, "[Handler.CancelShopOrder]: order not found")
+			log.Warn(err)
+			return c.JSON(http.StatusNotFound, entity.ErrorResponse{
+				Message: utils.StandardError(err),
 			})
 		}
 		if err.Error() == "you don't have permission to update this order status" {
-			return c.JSON(http.StatusForbidden, map[string]string{
-				"error": err.Error(),
+			err = errors.Wrap(err, "[Handler.CancelShopOrder]: user don't have permission to update this order status")
+			log.Warn(err)
+			return c.JSON(http.StatusForbidden, entity.ErrorResponse{
+				Message: utils.StandardError(err),
 			})
 		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
+		err = errors.Wrap(err, "[Handler.CancelShopOrder]: failed to cancel order")
+		return c.JSON(http.StatusInternalServerError, entity.ErrorResponse{
+			Message: utils.StandardError(err),
 		})
 	}
 
