@@ -35,9 +35,9 @@ type Order struct {
 	DeletedAt     gorm.DeletedAt `gorm:"index"`
 
 	// Relations
-	User      User        `json:"user,omitempty" gorm:"foreignKey:UserID"`
-	Shop      Shop        `json:"shop,omitempty" gorm:"foreignKey:ShopID"`
-	Courier   Courier     `json:"courier,omitempty" gorm:"foreignKey:CourierID"`
+	User       User        `json:"user,omitempty" gorm:"foreignKey:UserID"`
+	Shop       Shop        `json:"shop,omitempty" gorm:"foreignKey:ShopID"`
+	Courier    Courier     `json:"courier,omitempty" gorm:"foreignKey:CourierID"`
 	OrderItems []OrderItem `json:"order_items,omitempty" gorm:"foreignKey:OrderID"`
 }
 
@@ -53,4 +53,8 @@ type OrderItem struct {
 
 	// Relations
 	Product Product `json:"product,omitempty" gorm:"foreignKey:ProductID"`
+}
+
+type ErrorResponse struct {
+	Message string `json:"message"`
 }
